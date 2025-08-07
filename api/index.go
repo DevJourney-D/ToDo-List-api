@@ -122,6 +122,78 @@ func setupRoutes() {
 		})
 	})
 
+	// Authentication endpoints (basic implementation)
+	app.POST("/api/v1/register", func(c *gin.Context) {
+		var request struct {
+			Username string `json:"username"`
+			Email    string `json:"email"`
+			Password string `json:"password"`
+		}
+		
+		if err := c.ShouldBindJSON(&request); err != nil {
+			c.JSON(400, gin.H{
+				"error":   "Invalid request format",
+				"message": err.Error(),
+			})
+			return
+		}
+		
+		// TODO: Implement actual registration logic with database
+		c.JSON(200, gin.H{
+			"message": "Registration endpoint (demo)",
+			"status":  "success",
+			"user": gin.H{
+				"username": request.Username,
+				"email":    request.Email,
+			},
+			"note": "This is a demo response. Database integration needed.",
+		})
+	})
+
+	app.POST("/api/v1/login", func(c *gin.Context) {
+		var request struct {
+			Username string `json:"username"`
+			Password string `json:"password"`
+		}
+		
+		if err := c.ShouldBindJSON(&request); err != nil {
+			c.JSON(400, gin.H{
+				"error":   "Invalid request format",
+				"message": err.Error(),
+			})
+			return
+		}
+		
+		// TODO: Implement actual login logic with database and JWT
+		c.JSON(200, gin.H{
+			"message": "Login endpoint (demo)",
+			"status":  "success",
+			"user": gin.H{
+				"username": request.Username,
+				"id":       1,
+			},
+			"token": "demo-jwt-token-placeholder",
+			"note":   "This is a demo response. JWT authentication needed.",
+		})
+	})
+
+	app.GET("/api/v1/check-username", func(c *gin.Context) {
+		username := c.Query("username")
+		if username == "" {
+			c.JSON(400, gin.H{
+				"error": "Username parameter required",
+			})
+			return
+		}
+		
+		// TODO: Check username availability in database
+		c.JSON(200, gin.H{
+			"username":  username,
+			"available": true, // Demo response
+			"message":   "Username check endpoint (demo)",
+		})
+	})
+
 	// Catch all route for debugging
 	app.NoRoute(func(c *gin.Context) {
 		c.JSON(404, gin.H{
@@ -136,6 +208,9 @@ func setupRoutes() {
 				"GET /test",
 				"GET /api/v1/status",
 				"GET /api/v1/cors-test",
+				"POST /api/v1/register",
+				"POST /api/v1/login",
+				"GET /api/v1/check-username",
 			},
 		})
 	})
