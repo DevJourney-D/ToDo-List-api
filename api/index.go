@@ -129,7 +129,7 @@ func setupRoutes() {
 			Email    string `json:"email"`
 			Password string `json:"password"`
 		}
-		
+
 		if err := c.ShouldBindJSON(&request); err != nil {
 			c.JSON(400, gin.H{
 				"error":   "Invalid request format",
@@ -137,7 +137,7 @@ func setupRoutes() {
 			})
 			return
 		}
-		
+
 		// TODO: Implement actual registration logic with database
 		c.JSON(200, gin.H{
 			"message": "Registration endpoint (demo)",
@@ -155,7 +155,7 @@ func setupRoutes() {
 			Username string `json:"username"`
 			Password string `json:"password"`
 		}
-		
+
 		if err := c.ShouldBindJSON(&request); err != nil {
 			c.JSON(400, gin.H{
 				"error":   "Invalid request format",
@@ -163,7 +163,7 @@ func setupRoutes() {
 			})
 			return
 		}
-		
+
 		// TODO: Implement actual login logic with database and JWT
 		c.JSON(200, gin.H{
 			"message": "Login endpoint (demo)",
@@ -173,7 +173,7 @@ func setupRoutes() {
 				"id":       1,
 			},
 			"token": "demo-jwt-token-placeholder",
-			"note":   "This is a demo response. JWT authentication needed.",
+			"note":  "This is a demo response. JWT authentication needed.",
 		})
 	})
 
@@ -185,7 +185,7 @@ func setupRoutes() {
 			})
 			return
 		}
-		
+
 		// TODO: Check username availability in database
 		c.JSON(200, gin.H{
 			"username":  username,
