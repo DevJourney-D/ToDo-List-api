@@ -19,11 +19,5 @@
     "JWT_SECRET": "@jwt_secret",
     "PORT": "8080",
     "GIN_MODE": "release"
-  },
-  "analytics": {
-    "id": "prj_analytics"
-  },
-  "speedInsights": {
-    "id": "prj_speed_insights"
   }
 }
