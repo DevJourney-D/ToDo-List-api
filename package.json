@@ -1,0 +1,40 @@
+{
+  "name": "todo-list-api",
+  "version": "1.0.0",
+  "description": "ToDo List API - Go backend deployed on Vercel Serverless with Analytics",
+  "main": "api/index.go",
+  "scripts": {
+    "dev": "go run main.go",
+    "build": "go build -o bin/main main.go",
+    "deploy": "./deploy.sh",
+    "logs": "vercel logs",
+    "analytics": "echo 'Visit https://vercel.com/analytics to view analytics dashboard'"
+  },
+  "keywords": [
+    "todo",
+    "api",
+    "go",
+    "gin",
+    "vercel",
+    "serverless",
+    "analytics",
+    "postgresql",
+    "supabase"
+  ],
+  "author": "DevJourney-D",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/DevJourney-D/ToDo-List-api.git"
+  },
+  "devDependencies": {
+    "vercel": "latest"
+  },
+  "engines": {
+    "go": ">=1.19"
+  },
+  "vercel": {
+    "analytics": true,
+    "speedInsights": true
+  }
+}

@@ -17,6 +17,22 @@ import (
 
 var app *gin.Engine
 
+// Analytics logging function
+func logAnalytics(c *gin.Context, duration time.Duration) {
+	// Log basic analytics (you can send this to external analytics service)
+	fmt.Printf("[ANALYTICS] %s %s - Status: %d - Duration: %v - IP: %s - UserAgent: %s\n",
+		c.Request.Method,
+		c.Request.URL.Path,
+		c.Writer.Status(),
+		duration,
+		c.ClientIP(),
+		c.Request.UserAgent(),
+	)
+	
+	// You can extend this to send data to external analytics services
+	// like Google Analytics, Mixpanel, etc.
+}
+
 func init() {
 	// Load configuration
 	cfg := config.LoadConfig()
@@ -54,6 +70,18 @@ func init() {
 
 	// Add recovery middleware
 	app.Use(gin.Recovery())
+	
+	// Analytics middleware for tracking API usage
+	app.Use(func(c *gin.Context) {
+		start := time.Now()
+		
+		// Process request
+		c.Next()
+		
+		// Log analytics data
+		duration := time.Since(start)
+		logAnalytics(c, duration)
+	})
 
 	// Configure CORS for production
 	corsConfig := cors.DefaultConfig()
@@ -161,6 +189,34 @@ func init() {
 		protected.GET("/habits/:id/streak", habitController.GetHabitStreak)
 		protected.GET("/habits/consistency-report", habitController.GetHabitsConsistencyReport)
 	}
+
+	// Analytics endpoint for usage statistics
+	app.GET("/analytics", func(c *gin.Context) {
+		c.JSON(200, gin.H{
+			"message": "📊 API Analytics Dashboard",
+			"description": "Real-time analytics and usage statistics",
+			"features": gin.H{
+				"vercel_analytics": "✅ Enabled via JavaScript",
+				"speed_insights": "✅ Enabled for performance monitoring", 
+				"server_logging": "✅ Custom analytics middleware active",
+				"tracking": gin.H{
+					"page_views": "Homepage visits tracked",
+					"api_calls": "All endpoint usage logged",
+					"performance": "Response time monitoring",
+					"errors": "Error rate tracking",
+				},
+			},
+			"dashboards": gin.H{
+				"vercel": "https://vercel.com/analytics",
+				"logs": "Available via Vercel Functions logs",
+			},
+			"custom_events": []string{
+				"pageview - Homepage visits", 
+				"health_check_click - Health check button clicks",
+				"api_request - All API endpoint calls",
+			},
+		})
+	})
 
 	// Health check endpoint with enhanced response
 	app.GET("/health", func(c *gin.Context) {
@@ -426,6 +482,7 @@ func init() {
         </div>
         
         <a href="/health" class="health-check">🔍 ตรวจสอบสุขภาพเซิร์ฟเวอร์</a>
+        <a href="/analytics" class="health-check" style="margin-left: 1rem; background: #3b82f6;">📊 ดู Analytics</a>
         
         <div class="footer">
             <p>🛠️ พัฒนาด้วย Go + Gin Framework</p>
@@ -454,6 +511,47 @@ func init() {
         updateTimestamp();
         setInterval(updateTimestamp, 1000);
         
+        // Vercel Analytics Custom Events
+        function trackPageView() {
+            if (window.va) {
+                window.va('track', 'pageview', {
+                    page: 'API Homepage',
+                    timestamp: new Date().toISOString()
+                });
+            }
+        }
+        
+        function trackHealthCheck() {
+            if (window.va) {
+                window.va('track', 'health_check_click', {
+                    source: 'homepage_button'
+                });
+            }
+        }
+        
+        function trackAnalyticsView() {
+            if (window.va) {
+                window.va('track', 'analytics_view_click', {
+                    source: 'homepage_button'
+                });
+            }
+        }
+        
+        // Track page load
+        trackPageView();
+        
+        // Add tracking to health check button
+        const healthCheckBtn = document.querySelector('.health-check');
+        if (healthCheckBtn) {
+            healthCheckBtn.addEventListener('click', trackHealthCheck);
+        }
+        
+        // Add tracking to analytics button
+        const analyticsBtns = document.querySelectorAll('a[href="/analytics"]');
+        analyticsBtns.forEach(btn => {
+            btn.addEventListener('click', trackAnalyticsView);
+        });
+        
         // เพิ่มเอฟเฟกต์ hover ให้กับ endpoint cards
         document.querySelectorAll('.endpoint').forEach(endpoint => {
             endpoint.addEventListener('mouseenter', function() {
@@ -466,6 +564,15 @@ func init() {
             });
         });
     </script>
+    
+    <!-- Vercel Analytics -->
+    <script>
+        window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };
+    </script>
+    <script defer src="/_vercel/insights/script.js"></script>
+    
+    <!-- Optional: Vercel Web Analytics for detailed tracking -->
+    <script defer src="/_vercel/speed-insights/script.js"></script>
 </body>
 </html>`
 		c.Data(200, "text/html; charset=utf-8", []byte(html))
