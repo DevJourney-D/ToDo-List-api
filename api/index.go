@@ -240,6 +240,34 @@ func setupRoutes() {
 		})
 	})
 
+	// Temporary public route for testing (remove in production)
+	app.GET("/api/v1/public/tasks/categories", func(c *gin.Context) {
+		c.JSON(200, gin.H{
+			"message":     "Public categories endpoint for testing",
+			"categories":  []string{"Work", "Personal", "Shopping", "Health", "Education", "Finance", "Travel", "Family", "Hobbies", "Study"},
+			"note":        "This is a temporary public endpoint. Please use proper authentication.",
+			"cors_origin": c.GetHeader("Origin"),
+		})
+	})
+
+	// Temporary public routes for frontend testing
+	app.GET("/api/v1/public/tasks", func(c *gin.Context) {
+		c.JSON(200, gin.H{
+			"message":     "Public tasks endpoint for testing",
+			"tasks":       []gin.H{},
+			"total":       0,
+			"note":        "This is a temporary public endpoint. Please use proper authentication.",
+			"cors_origin": c.GetHeader("Origin"),
+		})
+	})
+
+	app.OPTIONS("/api/v1/*path", func(c *gin.Context) {
+		c.Header("Access-Control-Allow-Origin", "*")
+		c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
+		c.Header("Access-Control-Allow-Headers", "Origin, Content-Type, Accept, Authorization, X-Requested-With")
+		c.Status(200)
+	})
+
 	// Debug routes listing
 	app.GET("/api/v1/routes", func(c *gin.Context) {
 		routes := app.Routes()
@@ -268,6 +296,59 @@ func setupRoutes() {
 			"user_agent":   c.GetHeader("User-Agent"),
 			"method":       c.Request.Method,
 			"timestamp":    time.Now().Format(time.RFC3339),
+		})
+	})
+
+	// API Info endpoint to help frontend understand the correct API URL
+	app.GET("/api/v1/info", func(c *gin.Context) {
+		c.JSON(200, gin.H{
+			"api_name":         "ToDo List API",
+			"version":          "1.0.0",
+			"frontend_url":     "https://daily-palette.vercel.app",
+			"api_base_url":     c.Request.Header.Get("Host"),
+			"full_api_url":     "https://" + c.Request.Header.Get("Host"),
+			"message":          "Use this API URL in your frontend configuration",
+			"example_endpoint": "https://" + c.Request.Header.Get("Host") + "/api/v1/tasks",
+			"cors_enabled":     true,
+			"auth_required":    true,
+			"auth_header":      "Authorization: Bearer <your-jwt-token>",
+		})
+	})
+
+	// Proxy configuration endpoint for frontend
+	app.GET("/api/v1/proxy-config", func(c *gin.Context) {
+		apiHost := c.Request.Header.Get("Host")
+		c.JSON(200, gin.H{
+			"proxy_target": "https://" + apiHost,
+			"proxy_config": gin.H{
+				"target":       "https://" + apiHost,
+				"changeOrigin": true,
+				"pathRewrite": gin.H{
+					"^/api": "/api",
+				},
+			},
+			"next_js_config": gin.H{
+				"rewrites": []gin.H{
+					{
+						"source":      "/api/:path*",
+						"destination": "https://" + apiHost + "/api/:path*",
+					},
+				},
+			},
+			"vite_config": gin.H{
+				"proxy": gin.H{
+					"/api": gin.H{
+						"target":       "https://" + apiHost,
+						"changeOrigin": true,
+						"secure":       true,
+					},
+				},
+			},
+			"env_variables": gin.H{
+				"NEXT_PUBLIC_API_URL": "https://" + apiHost,
+				"VITE_API_URL":        "https://" + apiHost,
+				"REACT_APP_API_URL":   "https://" + apiHost,
+			},
 		})
 	})
 
