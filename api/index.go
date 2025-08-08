@@ -161,6 +161,28 @@ func setupRoutes() {
 		})
 	})
 
+	// Debug endpoint for task creation
+	app.POST("/api/v1/debug/tasks", func(c *gin.Context) {
+		// Parse raw body for debugging
+		var rawBody map[string]interface{}
+		if err := c.ShouldBindJSON(&rawBody); err != nil {
+			c.JSON(400, gin.H{
+				"error":   "Invalid JSON",
+				"details": err.Error(),
+			})
+			return
+		}
+
+		c.JSON(200, gin.H{
+			"message": "Debug endpoint - received request",
+			"body":    rawBody,
+			"headers": gin.H{
+				"content-type":  c.GetHeader("Content-Type"),
+				"authorization": c.GetHeader("Authorization"),
+			},
+		})
+	})
+
 	// CORS test endpoint
 	app.GET("/api/v1/cors-test", func(c *gin.Context) {
 		c.JSON(200, gin.H{

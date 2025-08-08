@@ -188,13 +188,19 @@ func (ctrl *TaskController) CreateTask(c *gin.Context) {
 
 	var req models.CreateTaskRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   err.Error(),
+			"details": "Failed to bind JSON request body",
+		})
 		return
 	}
 
 	task, err := ctrl.taskService.CreateTask(userID, &req)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create task"})
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "Failed to create task",
+			"details": err.Error(),
+		})
 		return
 	}
 
