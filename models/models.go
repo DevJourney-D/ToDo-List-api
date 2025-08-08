@@ -1,7 +1,9 @@
 package models
 
 import (
+	"database/sql/driver"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"time"
 )
@@ -42,6 +44,37 @@ func (ct CustomTime) MarshalJSON() ([]byte, error) {
 		return []byte("null"), nil
 	}
 	return json.Marshal(ct.Time.Format("2006-01-02T15:04:05Z07:00"))
+}
+
+// Value implements driver.Valuer interface for SQL database operations
+func (ct CustomTime) Value() (driver.Value, error) {
+	if ct.Time.IsZero() {
+		return nil, nil
+	}
+	return ct.Time, nil
+}
+
+// Scan implements sql.Scanner interface for SQL database operations
+func (ct *CustomTime) Scan(value interface{}) error {
+	if value == nil {
+		ct.Time = time.Time{}
+		return nil
+	}
+
+	switch v := value.(type) {
+	case time.Time:
+		ct.Time = v
+		return nil
+	case string:
+		t, err := time.Parse(time.RFC3339, v)
+		if err != nil {
+			return err
+		}
+		ct.Time = t
+		return nil
+	default:
+		return fmt.Errorf("cannot scan %T into CustomTime", value)
+	}
 }
 
 type User struct {

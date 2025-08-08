@@ -170,11 +170,20 @@ func NewTaskRepository(db *sql.DB) TaskRepository {
 
 func (r *taskRepository) CreateTask(task *models.Task) (*models.Task, error) {
 	var createdTask models.Task
+
+	// Handle nil DueDate pointer
+	var dueDate interface{}
+	if task.DueDate != nil {
+		dueDate = task.DueDate
+	} else {
+		dueDate = nil
+	}
+
 	err := r.db.QueryRow(`
 		INSERT INTO tasks (user_id, task_name, description, category, priority, due_date, is_recurring, recurring_frequency) 
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8) 
 		RETURNING id, user_id, task_name, description, category, priority, due_date, is_completed, is_recurring, recurring_frequency, created_at`,
-		task.UserID, task.TaskName, task.Description, task.Category, task.Priority, task.DueDate, task.IsRecurring, task.RecurringFrequency,
+		task.UserID, task.TaskName, task.Description, task.Category, task.Priority, dueDate, task.IsRecurring, task.RecurringFrequency,
 	).Scan(&createdTask.ID, &createdTask.UserID, &createdTask.TaskName, &createdTask.Description,
 		&createdTask.Category, &createdTask.Priority, &createdTask.DueDate, &createdTask.IsCompleted,
 		&createdTask.IsRecurring, &createdTask.RecurringFrequency, &createdTask.CreatedAt)
@@ -228,12 +237,21 @@ func (r *taskRepository) GetTaskByID(taskID, userID int64) (*models.Task, error)
 
 func (r *taskRepository) UpdateTask(task *models.Task) (*models.Task, error) {
 	var updatedTask models.Task
+
+	// Handle nil DueDate pointer
+	var dueDate interface{}
+	if task.DueDate != nil {
+		dueDate = task.DueDate
+	} else {
+		dueDate = nil
+	}
+
 	err := r.db.QueryRow(`
 		UPDATE tasks SET task_name = $1, description = $2, category = $3, priority = $4, due_date = $5, 
 		is_completed = $6, is_recurring = $7, recurring_frequency = $8 
 		WHERE id = $9 AND user_id = $10 
 		RETURNING id, user_id, task_name, description, category, priority, due_date, is_completed, is_recurring, recurring_frequency, created_at`,
-		task.TaskName, task.Description, task.Category, task.Priority, task.DueDate,
+		task.TaskName, task.Description, task.Category, task.Priority, dueDate,
 		task.IsCompleted, task.IsRecurring, task.RecurringFrequency, task.ID, task.UserID,
 	).Scan(&updatedTask.ID, &updatedTask.UserID, &updatedTask.TaskName, &updatedTask.Description,
 		&updatedTask.Category, &updatedTask.Priority, &updatedTask.DueDate, &updatedTask.IsCompleted,
