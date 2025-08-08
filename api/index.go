@@ -3,7 +3,6 @@ package handler
 import (
 	"fmt"
 	"net/http"
-	"strings"
 	"time"
 	"todo-backend/config"
 	"todo-backend/controllers"
@@ -131,6 +130,7 @@ func setupRoutes() {
             <a href="/health" class="btn">🔍 Check Health</a>
             <a href="/test" class="btn">🧪 Test API</a>
             <a href="/api/v1/status" class="btn">📊 API Status</a>
+            <a href="/api/v1/ping" class="btn">🏓 Ping</a>
         </div>
         
         <div style="margin: 20px 0;">
@@ -168,6 +168,16 @@ func setupRoutes() {
 		})
 	})
 
+	// Health check endpoint (same as /health but under /api/v1)
+	app.GET("/api/v1/health", func(c *gin.Context) {
+		c.JSON(200, gin.H{
+			"status":      "healthy",
+			"message":     "ToDo List API is running on Vercel",
+			"time":        time.Now().Format(time.RFC3339),
+			"api_version": "v1",
+		})
+	})
+
 	// Test route for debugging
 	app.GET("/test", func(c *gin.Context) {
 		c.JSON(200, gin.H{
@@ -175,127 +185,6 @@ func setupRoutes() {
 			"path":         "/test",
 			"origin":       c.GetHeader("Origin"),
 			"cors_enabled": "✅",
-		})
-	})
-
-	// Debug endpoint for task creation
-	app.POST("/api/v1/debug/tasks", func(c *gin.Context) {
-		// Parse raw body for debugging
-		var rawBody map[string]interface{}
-		if err := c.ShouldBindJSON(&rawBody); err != nil {
-			c.JSON(400, gin.H{
-				"error":   "Invalid JSON",
-				"details": err.Error(),
-			})
-			return
-		}
-
-		c.JSON(200, gin.H{
-			"message": "Debug endpoint - received request",
-			"body":    rawBody,
-			"headers": gin.H{
-				"content-type":  c.GetHeader("Content-Type"),
-				"authorization": c.GetHeader("Authorization"),
-			},
-		})
-	})
-
-	// Debug endpoint for PUT requests
-	app.PUT("/api/v1/debug/tasks/:id", func(c *gin.Context) {
-		taskID := c.Param("id")
-
-		var rawBody map[string]interface{}
-		if err := c.ShouldBindJSON(&rawBody); err != nil {
-			c.JSON(400, gin.H{
-				"error":   "Invalid JSON",
-				"details": err.Error(),
-			})
-			return
-		}
-
-		c.JSON(200, gin.H{
-			"message": "Debug PUT endpoint - received request",
-			"task_id": taskID,
-			"body":    rawBody,
-			"method":  c.Request.Method,
-			"path":    c.Request.URL.Path,
-			"headers": gin.H{
-				"content-type":  c.GetHeader("Content-Type"),
-				"authorization": c.GetHeader("Authorization"),
-				"origin":        c.GetHeader("Origin"),
-			},
-		})
-	})
-
-	// Test PUT without auth
-	app.PUT("/api/v1/test/tasks/:id", func(c *gin.Context) {
-		taskID := c.Param("id")
-
-		c.JSON(200, gin.H{
-			"message":   "PUT test successful - no auth required",
-			"task_id":   taskID,
-			"method":    c.Request.Method,
-			"path":      c.Request.URL.Path,
-			"timestamp": time.Now().Format(time.RFC3339),
-		})
-	})
-
-	// Temporary public route for testing (remove in production)
-	app.GET("/api/v1/public/tasks/categories", func(c *gin.Context) {
-		c.JSON(200, gin.H{
-			"message":     "Public categories endpoint for testing",
-			"categories":  []string{"Work", "Personal", "Shopping", "Health", "Education", "Finance", "Travel", "Family", "Hobbies", "Study"},
-			"note":        "This is a temporary public endpoint. Please use proper authentication.",
-			"cors_origin": c.GetHeader("Origin"),
-		})
-	})
-
-	// Temporary public routes for frontend testing
-	app.GET("/api/v1/public/tasks", func(c *gin.Context) {
-		c.JSON(200, gin.H{
-			"message":     "Public tasks endpoint for testing",
-			"tasks":       []gin.H{},
-			"total":       0,
-			"note":        "This is a temporary public endpoint. Please use proper authentication.",
-			"cors_origin": c.GetHeader("Origin"),
-		})
-	})
-
-	app.OPTIONS("/api/v1/*path", func(c *gin.Context) {
-		c.Header("Access-Control-Allow-Origin", "*")
-		c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
-		c.Header("Access-Control-Allow-Headers", "Origin, Content-Type, Accept, Authorization, X-Requested-With")
-		c.Status(200)
-	})
-
-	// Debug routes listing
-	app.GET("/api/v1/routes", func(c *gin.Context) {
-		routes := app.Routes()
-		var routeList []gin.H
-
-		for _, route := range routes {
-			routeList = append(routeList, gin.H{
-				"method": route.Method,
-				"path":   route.Path,
-			})
-		}
-
-		c.JSON(200, gin.H{
-			"message":      "Available routes",
-			"total_routes": len(routeList),
-			"routes":       routeList,
-		})
-	})
-
-	// CORS test endpoint
-	app.GET("/api/v1/cors-test", func(c *gin.Context) {
-		c.JSON(200, gin.H{
-			"message":      "CORS test successful",
-			"frontend_url": "https://daily-palette.vercel.app",
-			"origin":       c.GetHeader("Origin"),
-			"user_agent":   c.GetHeader("User-Agent"),
-			"method":       c.Request.Method,
-			"timestamp":    time.Now().Format(time.RFC3339),
 		})
 	})
 
@@ -315,40 +204,32 @@ func setupRoutes() {
 		})
 	})
 
-	// Proxy configuration endpoint for frontend
-	app.GET("/api/v1/proxy-config", func(c *gin.Context) {
-		apiHost := c.Request.Header.Get("Host")
+	// CORS test endpoint
+	app.GET("/api/v1/cors-test", func(c *gin.Context) {
 		c.JSON(200, gin.H{
-			"proxy_target": "https://" + apiHost,
-			"proxy_config": gin.H{
-				"target":       "https://" + apiHost,
-				"changeOrigin": true,
-				"pathRewrite": gin.H{
-					"^/api": "/api",
-				},
-			},
-			"next_js_config": gin.H{
-				"rewrites": []gin.H{
-					{
-						"source":      "/api/:path*",
-						"destination": "https://" + apiHost + "/api/:path*",
-					},
-				},
-			},
-			"vite_config": gin.H{
-				"proxy": gin.H{
-					"/api": gin.H{
-						"target":       "https://" + apiHost,
-						"changeOrigin": true,
-						"secure":       true,
-					},
-				},
-			},
-			"env_variables": gin.H{
-				"NEXT_PUBLIC_API_URL": "https://" + apiHost,
-				"VITE_API_URL":        "https://" + apiHost,
-				"REACT_APP_API_URL":   "https://" + apiHost,
-			},
+			"message":      "CORS test successful",
+			"frontend_url": "https://daily-palette.vercel.app",
+			"origin":       c.GetHeader("Origin"),
+			"user_agent":   c.GetHeader("User-Agent"),
+			"method":       c.Request.Method,
+			"timestamp":    time.Now().Format(time.RFC3339),
+		})
+	})
+
+	// Handle all OPTIONS requests
+	app.OPTIONS("/api/v1/*path", func(c *gin.Context) {
+		c.Header("Access-Control-Allow-Origin", "*")
+		c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
+		c.Header("Access-Control-Allow-Headers", "Origin, Content-Type, Accept, Authorization, X-Requested-With")
+		c.Status(200)
+	})
+
+	// Public endpoints for frontend initial setup
+	app.GET("/api/v1/ping", func(c *gin.Context) {
+		c.JSON(200, gin.H{
+			"message":   "pong",
+			"timestamp": time.Now().Format(time.RFC3339),
+			"status":    "ok",
 		})
 	})
 
@@ -359,15 +240,6 @@ func setupRoutes() {
 
 	// Protected routes (authentication required)
 	protected := app.Group("/api/v1")
-
-	// Add debug middleware before auth middleware
-	protected.Use(func(c *gin.Context) {
-		if strings.Contains(c.Request.URL.Path, "/tasks/") && c.Request.Method == "PUT" {
-			c.Header("X-Debug", "Route matched protected group")
-		}
-		c.Next()
-	})
-
 	protected.Use(middleware.AuthMiddleware())
 	{
 		// User routes

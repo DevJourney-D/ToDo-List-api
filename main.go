@@ -1,7 +1,9 @@
 package main
 
 import (
+	"fmt"
 	"log"
+	"time"
 	"todo-backend/config"
 	"todo-backend/controllers"
 	"todo-backend/middleware"
@@ -46,20 +48,39 @@ func main() {
 	analyticsController := controllers.NewAnalyticsController(authService, taskService, habitService)
 
 	// Initialize Gin router
-	r := gin.Default()
+	gin.SetMode(gin.ReleaseMode) // Set to release mode for production
+	r := gin.New()
+	r.Use(gin.Recovery())
+
+	// Add request logging for production
+	r.Use(gin.LoggerWithFormatter(func(param gin.LogFormatterParams) string {
+		return fmt.Sprintf("%s - [%s] \"%s %s %s %d %s \"%s\" %s\"\n",
+			param.ClientIP,
+			param.TimeStamp.Format(time.RFC3339),
+			param.Method,
+			param.Path,
+			param.Request.Proto,
+			param.StatusCode,
+			param.Latency,
+			param.Request.UserAgent(),
+			param.ErrorMessage,
+		)
+	}))
 
 	// Configure CORS
 	corsConfig := cors.DefaultConfig()
 	corsConfig.AllowOrigins = []string{
+		"https://daily-palette.vercel.app",
 		"http://localhost:3000",
 		"http://localhost:5173",
 		"http://127.0.0.1:5500",
 		"http://localhost:5500",
-		"http://localhost:8080", // Add backend itself for testing
-	} // Add your frontend URLs
+		"http://localhost:8080",
+		"*", // Allow all origins as fallback
+	}
 	corsConfig.AllowCredentials = true
 	corsConfig.AllowHeaders = []string{"Origin", "Content-Type", "Accept", "Authorization", "X-Requested-With"}
-	corsConfig.AllowMethods = []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"} // Added PATCH method
+	corsConfig.AllowMethods = []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"}
 	r.Use(cors.New(corsConfig))
 
 	// Public routes (no authentication required)
