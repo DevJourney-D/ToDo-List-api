@@ -113,7 +113,8 @@ func ImportTasksFromCSV(data []byte) ([]*models.Task, error) {
 		// Parse DueDate
 		if record[5] != "" {
 			if dueDate, err := time.Parse(time.RFC3339, record[5]); err == nil {
-				task.DueDate = &dueDate
+				customTime := &models.CustomTime{Time: dueDate}
+				task.DueDate = customTime
 			}
 		}
 
@@ -147,11 +148,11 @@ func stringValueOrEmpty(s *string) string {
 	return *s
 }
 
-func timeValueOrEmpty(t *time.Time) string {
+func timeValueOrEmpty(t *models.CustomTime) string {
 	if t == nil {
 		return ""
 	}
-	return t.Format(time.RFC3339)
+	return t.Time.Format(time.RFC3339)
 }
 
 // Habit Export/Import functions
@@ -252,7 +253,8 @@ func ImportHabitsFromCSV(data []byte) ([]*models.Habit, error) {
 		// Parse LastTrackedDate
 		if record[5] != "" {
 			if lastTracked, err := time.Parse(time.RFC3339, record[5]); err == nil {
-				habit.LastTrackedDate = &lastTracked
+				customTime := &models.CustomTime{Time: lastTracked}
+				habit.LastTrackedDate = customTime
 			}
 		}
 

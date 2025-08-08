@@ -1,8 +1,48 @@
 package models
 
 import (
+	"encoding/json"
+	"strings"
 	"time"
 )
+
+// CustomTime is a custom time type that can handle multiple date formats
+type CustomTime struct {
+	time.Time
+}
+
+// UnmarshalJSON implements json.Unmarshaler interface
+func (ct *CustomTime) UnmarshalJSON(data []byte) error {
+	s := strings.Trim(string(data), "\"")
+	if s == "null" || s == "" {
+		return nil
+	}
+
+	// Try different date formats
+	formats := []string{
+		"2006-01-02T15:04:05Z07:00", // RFC3339
+		"2006-01-02T15:04:05Z",      // RFC3339 without timezone
+		"2006-01-02T15:04:05",       // ISO 8601 without timezone
+		"2006-01-02",                // Date only
+	}
+
+	for _, format := range formats {
+		if t, err := time.Parse(format, s); err == nil {
+			ct.Time = t
+			return nil
+		}
+	}
+
+	return &time.ParseError{Layout: "multiple formats", Value: s, Message: "cannot parse date"}
+}
+
+// MarshalJSON implements json.Marshaler interface
+func (ct CustomTime) MarshalJSON() ([]byte, error) {
+	if ct.Time.IsZero() {
+		return []byte("null"), nil
+	}
+	return json.Marshal(ct.Time.Format("2006-01-02T15:04:05Z07:00"))
+}
 
 type User struct {
 	ID           int64     `json:"id" db:"id"`
@@ -16,28 +56,28 @@ type User struct {
 }
 
 type Task struct {
-	ID                 int64      `json:"id" db:"id"`
-	UserID             int64      `json:"user_id" db:"user_id"`
-	TaskName           string     `json:"task_name" db:"task_name"`
-	Description        *string    `json:"description" db:"description"`
-	Category           *string    `json:"category" db:"category"`
-	Priority           int16      `json:"priority" db:"priority"`
-	DueDate            *time.Time `json:"due_date" db:"due_date"`
-	IsCompleted        bool       `json:"is_completed" db:"is_completed"`
-	IsRecurring        bool       `json:"is_recurring" db:"is_recurring"`
-	RecurringFrequency *string    `json:"recurring_frequency" db:"recurring_frequency"`
-	CreatedAt          time.Time  `json:"created_at" db:"created_at"`
+	ID                 int64       `json:"id" db:"id"`
+	UserID             int64       `json:"user_id" db:"user_id"`
+	TaskName           string      `json:"task_name" db:"task_name"`
+	Description        *string     `json:"description" db:"description"`
+	Category           *string     `json:"category" db:"category"`
+	Priority           int16       `json:"priority" db:"priority"`
+	DueDate            *CustomTime `json:"due_date" db:"due_date"`
+	IsCompleted        bool        `json:"is_completed" db:"is_completed"`
+	IsRecurring        bool        `json:"is_recurring" db:"is_recurring"`
+	RecurringFrequency *string     `json:"recurring_frequency" db:"recurring_frequency"`
+	CreatedAt          time.Time   `json:"created_at" db:"created_at"`
 }
 
 type Habit struct {
-	ID              int64      `json:"id" db:"id"`
-	UserID          int64      `json:"user_id" db:"user_id"`
-	Name            string     `json:"name" db:"name"`
-	Type            string     `json:"type" db:"type"`
-	TargetValue     *string    `json:"target_value" db:"target_value"`
-	IsAchieved      bool       `json:"is_achieved" db:"is_achieved"`
-	LastTrackedDate *time.Time `json:"last_tracked_date" db:"last_tracked_date"`
-	CreatedAt       time.Time  `json:"created_at" db:"created_at"`
+	ID              int64       `json:"id" db:"id"`
+	UserID          int64       `json:"user_id" db:"user_id"`
+	Name            string      `json:"name" db:"name"`
+	Type            string      `json:"type" db:"type"`
+	TargetValue     *string     `json:"target_value" db:"target_value"`
+	IsAchieved      bool        `json:"is_achieved" db:"is_achieved"`
+	LastTrackedDate *CustomTime `json:"last_tracked_date" db:"last_tracked_date"`
+	CreatedAt       time.Time   `json:"created_at" db:"created_at"`
 }
 
 type Log struct {
@@ -100,24 +140,24 @@ type UserStats struct {
 
 // Task request/response models
 type CreateTaskRequest struct {
-	TaskName           string     `json:"task_name" binding:"required"`
-	Description        *string    `json:"description"`
-	Category           *string    `json:"category"`
-	Priority           int16      `json:"priority"`
-	DueDate            *time.Time `json:"due_date"`
-	IsRecurring        bool       `json:"is_recurring"`
-	RecurringFrequency *string    `json:"recurring_frequency"`
+	TaskName           string      `json:"task_name" binding:"required"`
+	Description        *string     `json:"description"`
+	Category           *string     `json:"category"`
+	Priority           int16       `json:"priority"`
+	DueDate            *CustomTime `json:"due_date"`
+	IsRecurring        bool        `json:"is_recurring"`
+	RecurringFrequency *string     `json:"recurring_frequency"`
 }
 
 type UpdateTaskRequest struct {
-	TaskName           *string    `json:"task_name"`
-	Description        *string    `json:"description"`
-	Category           *string    `json:"category"`
-	Priority           *int16     `json:"priority"`
-	DueDate            *time.Time `json:"due_date"`
-	IsCompleted        *bool      `json:"is_completed"`
-	IsRecurring        *bool      `json:"is_recurring"`
-	RecurringFrequency *string    `json:"recurring_frequency"`
+	TaskName           *string     `json:"task_name"`
+	Description        *string     `json:"description"`
+	Category           *string     `json:"category"`
+	Priority           *int16      `json:"priority"`
+	DueDate            *CustomTime `json:"due_date"`
+	IsCompleted        *bool       `json:"is_completed"`
+	IsRecurring        *bool       `json:"is_recurring"`
+	RecurringFrequency *string     `json:"recurring_frequency"`
 }
 
 type TaskResponse struct {
@@ -199,11 +239,11 @@ type TimeAllocation struct {
 }
 
 type HabitStreak struct {
-	HabitID       int64      `json:"habit_id"`
-	HabitName     string     `json:"habit_name"`
-	CurrentStreak int32      `json:"current_streak"`
-	LongestStreak int32      `json:"longest_streak"`
-	LastTracked   *time.Time `json:"last_tracked"`
+	HabitID       int64       `json:"habit_id"`
+	HabitName     string      `json:"habit_name"`
+	CurrentStreak int32       `json:"current_streak"`
+	LongestStreak int32       `json:"longest_streak"`
+	LastTracked   *CustomTime `json:"last_tracked"`
 }
 
 // Request/Response Models for Personal Growth
@@ -251,8 +291,8 @@ type UpdateTaskStatusRequest struct {
 }
 
 type RescheduleTaskRequest struct {
-	NewDueDate time.Time `json:"new_due_date" binding:"required"`
-	Reason     *string   `json:"reason"`
+	NewDueDate CustomTime `json:"new_due_date" binding:"required"`
+	Reason     *string    `json:"reason"`
 }
 
 type SearchTasksRequest struct {
@@ -275,13 +315,13 @@ type DashboardSummary struct {
 }
 
 type UpcomingTask struct {
-	ID       int64      `json:"id"`
-	TaskName string     `json:"task_name"`
-	Category *string    `json:"category"`
-	Priority int16      `json:"priority"`
-	DueDate  *time.Time `json:"due_date"`
-	DaysLeft int        `json:"days_left"`
-	IsUrgent bool       `json:"is_urgent"`
+	ID       int64       `json:"id"`
+	TaskName string      `json:"task_name"`
+	Category *string     `json:"category"`
+	Priority int16       `json:"priority"`
+	DueDate  *CustomTime `json:"due_date"`
+	DaysLeft int         `json:"days_left"`
+	IsUrgent bool        `json:"is_urgent"`
 }
 
 type RecentActivity struct {

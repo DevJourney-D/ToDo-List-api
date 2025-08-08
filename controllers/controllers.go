@@ -869,8 +869,9 @@ func (ctrl *TaskController) RescheduleTask(c *gin.Context) {
 	}
 
 	// Update task with new due date
+	customTime := models.CustomTime{Time: req.NewDueDate.Time}
 	updateReq := &models.UpdateTaskRequest{
-		DueDate: &req.NewDueDate,
+		DueDate: &customTime,
 	}
 
 	updatedTask, err := ctrl.taskService.UpdateTask(taskID, userID, updateReq)
@@ -957,8 +958,8 @@ func (ctrl *TaskController) GetUpcomingTasks(c *gin.Context) {
 	var upcomingTasks []*models.UpcomingTask
 
 	for _, task := range tasks {
-		if !task.IsCompleted && task.DueDate != nil && task.DueDate.After(now) {
-			daysLeft := int(task.DueDate.Sub(now).Hours() / 24)
+		if !task.IsCompleted && task.DueDate != nil && task.DueDate.Time.After(now) {
+			daysLeft := int(task.DueDate.Time.Sub(now).Hours() / 24)
 			upcomingTask := &models.UpcomingTask{
 				ID:       task.ID,
 				TaskName: task.TaskName,
