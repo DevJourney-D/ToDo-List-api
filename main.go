@@ -85,8 +85,8 @@ func main() {
 	corsConfig.ExposeHeaders = []string{"Content-Length", "Access-Control-Allow-Origin", "Access-Control-Allow-Headers"}
 	r.Use(cors.New(corsConfig))
 
-	// Add rate limiting - 200 requests per minute per IP (increased for testing)
-	r.Use(middleware.RateLimitMiddleware(200, time.Minute))
+	// Add rate limiting - 100 requests per minute per IP (optimized)
+	r.Use(middleware.RateLimitMiddleware(100, time.Minute))
 
 	// Public routes (no authentication required)
 	public := r.Group("/api/v1")
