@@ -77,6 +77,7 @@ func init() {
 	corsConfig := cors.DefaultConfig()
 	corsConfig.AllowOrigins = []string{
 		"https://daily-palette.vercel.app",
+		"https://to-do-list-web.vercel.app", // Add potential domain
 		"http://localhost:3000",
 		"http://localhost:5173",
 		"http://127.0.0.1:5500",
@@ -84,14 +85,36 @@ func init() {
 		"*", // Allow all origins as fallback
 	}
 	corsConfig.AllowCredentials = true
-	corsConfig.AllowHeaders = []string{"Origin", "Content-Type", "Accept", "Authorization", "X-Requested-With"}
+	corsConfig.AllowHeaders = []string{"Origin", "Content-Type", "Accept", "Authorization", "X-Requested-With", "Access-Control-Allow-Origin"}
 	corsConfig.AllowMethods = []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"}
+	corsConfig.ExposeHeaders = []string{"Content-Length", "Access-Control-Allow-Origin", "Access-Control-Allow-Headers"}
 	app.Use(cors.New(corsConfig))
+
+	// Add debug middleware
+	app.Use(func(c *gin.Context) {
+		fmt.Printf("Request: %s %s from %s\n", c.Request.Method, c.Request.URL.Path, c.ClientIP())
+		fmt.Printf("Headers: %v\n", c.Request.Header)
+		c.Next()
+	})
+
+	// Add rate limiting - 200 requests per minute per IP (increased for testing)
+	app.Use(middleware.RateLimitMiddleware(200, time.Minute))
 
 	setupRoutes()
 }
 
 func setupRoutes() {
+	// Simple test endpoint (no middleware)
+	app.GET("/api/test", func(c *gin.Context) {
+		c.JSON(200, gin.H{
+			"status":  "success",
+			"message": "API is working",
+			"time":    time.Now().Format(time.RFC3339),
+			"origin":  c.GetHeader("Origin"),
+			"ip":      c.ClientIP(),
+		})
+	})
+
 	app.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{
 			"status":  "healthy",

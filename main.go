@@ -71,6 +71,7 @@ func main() {
 	corsConfig := cors.DefaultConfig()
 	corsConfig.AllowOrigins = []string{
 		"https://daily-palette.vercel.app",
+		"https://to-do-list-web.vercel.app", // Add potential domain
 		"http://localhost:3000",
 		"http://localhost:5173",
 		"http://127.0.0.1:5500",
@@ -79,9 +80,13 @@ func main() {
 		"*", // Allow all origins as fallback
 	}
 	corsConfig.AllowCredentials = true
-	corsConfig.AllowHeaders = []string{"Origin", "Content-Type", "Accept", "Authorization", "X-Requested-With"}
+	corsConfig.AllowHeaders = []string{"Origin", "Content-Type", "Accept", "Authorization", "X-Requested-With", "Access-Control-Allow-Origin"}
 	corsConfig.AllowMethods = []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"}
+	corsConfig.ExposeHeaders = []string{"Content-Length", "Access-Control-Allow-Origin", "Access-Control-Allow-Headers"}
 	r.Use(cors.New(corsConfig))
+
+	// Add rate limiting - 200 requests per minute per IP (increased for testing)
+	r.Use(middleware.RateLimitMiddleware(200, time.Minute))
 
 	// Public routes (no authentication required)
 	public := r.Group("/api/v1")
