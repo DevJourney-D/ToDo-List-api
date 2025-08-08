@@ -140,7 +140,7 @@ type UserStats struct {
 
 // Task request/response models
 type CreateTaskRequest struct {
-	TaskName           string      `json:"task_name" binding:"required"`
+	TaskName           string      `json:"name"`
 	Description        *string     `json:"description"`
 	Category           *string     `json:"category"`
 	Priority           int16       `json:"priority"`
