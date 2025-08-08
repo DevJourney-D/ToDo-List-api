@@ -84,7 +84,8 @@ func main() {
 		protected.POST("/tasks", taskController.CreateTask)       // Create
 		protected.GET("/tasks", taskController.GetTasks)          // Read (list)
 		protected.GET("/tasks/:id", taskController.GetTask)       // Read (single)
-		protected.PATCH("/tasks/:id", taskController.UpdateTask)  // Update
+		protected.PATCH("/tasks/:id", taskController.UpdateTask)  // Update (partial)
+		protected.PUT("/tasks/:id", taskController.UpdateTask)    // Update (full)
 		protected.DELETE("/tasks/:id", taskController.DeleteTask) // Delete
 
 		// Task specific actions
