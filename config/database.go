@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"time"
 
 	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
@@ -50,16 +49,11 @@ func InitDatabase(databaseURL string) {
 		log.Fatal("Failed to connect to database:", err)
 	}
 
-	// Configure connection pool for better performance
-	DB.SetMaxOpenConns(25)                 // Maximum number of open connections
-	DB.SetMaxIdleConns(10)                 // Maximum number of idle connections
-	DB.SetConnMaxLifetime(5 * time.Minute) // Maximum time a connection can be reused
-
 	if err = DB.Ping(); err != nil {
 		log.Fatal("Failed to ping database:", err)
 	}
 
-	fmt.Println("Successfully connected to database with optimized pool settings")
+	fmt.Println("Successfully connected to database")
 }
 
 func CloseDatabase() {
