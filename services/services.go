@@ -26,6 +26,7 @@ type authService struct {
 	logRepo  repositories.LogRepository
 }
 
+
 func NewAuthService(userRepo repositories.UserRepository, logRepo repositories.LogRepository) AuthService {
 	return &authService{
 		userRepo: userRepo,
