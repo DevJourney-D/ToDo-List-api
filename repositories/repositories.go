@@ -151,7 +151,7 @@ func (r *userRepository) CheckUsernameExists(username string) (bool, error) {
 // Task Repository
 type TaskRepository interface {
 	CreateTask(task *models.Task) (*models.Task, error)
-	GetTasksByUserID(userID int64) ([]*models.Task, error)
+	GetTasksByUserIDPaginated(userID int64, page, pageSize int) ([]*models.Task, int64, error)
 	GetTaskByID(taskID, userID int64) (*models.Task, error)
 	UpdateTask(task *models.Task) (*models.Task, error)
 	DeleteTask(taskID, userID int64) error
@@ -196,11 +196,17 @@ func (r *taskRepository) CreateTask(task *models.Task) (*models.Task, error) {
 }
 
 func (r *taskRepository) GetTasksByUserID(userID int64) ([]*models.Task, error) {
+	// Deprecated: use GetTasksByUserIDPaginated
+	return nil, nil
+}
+
+func (r *taskRepository) GetTasksByUserIDPaginated(userID int64, page, pageSize int) ([]*models.Task, int64, error) {
+	offset := (page - 1) * pageSize
 	rows, err := r.db.Query(`
 		SELECT id, user_id, task_name, description, category, priority, due_date, is_completed, is_recurring, recurring_frequency, created_at 
-		FROM tasks WHERE user_id = $1 ORDER BY created_at DESC`, userID)
+		FROM tasks WHERE user_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3`, userID, pageSize, offset)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	defer rows.Close()
 
@@ -211,12 +217,19 @@ func (r *taskRepository) GetTasksByUserID(userID int64) ([]*models.Task, error) 
 			&task.Category, &task.Priority, &task.DueDate, &task.IsCompleted,
 			&task.IsRecurring, &task.RecurringFrequency, &task.CreatedAt)
 		if err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 		tasks = append(tasks, &task)
 	}
 
-	return tasks, nil
+	// Get total count
+	var total int64
+	err = r.db.QueryRow(`SELECT COUNT(*) FROM tasks WHERE user_id = $1`, userID).Scan(&total)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return tasks, total, nil
 }
 
 func (r *taskRepository) GetTaskByID(taskID, userID int64) (*models.Task, error) {
@@ -449,7 +462,7 @@ func (r *logRepository) GetLogsByEventType(eventType string, limit int) ([]*mode
 // Habit Repository
 type HabitRepository interface {
 	CreateHabit(habit *models.Habit) (*models.Habit, error)
-	GetHabitsByUserID(userID int64) ([]*models.Habit, error)
+	GetHabitsByUserIDPaginated(userID int64, page, pageSize int) ([]*models.Habit, int64, error)
 	GetHabitByID(habitID, userID int64) (*models.Habit, error)
 	UpdateHabit(habit *models.Habit) (*models.Habit, error)
 	DeleteHabit(habitID, userID int64) error
@@ -482,15 +495,21 @@ func (r *habitRepository) CreateHabit(habit *models.Habit) (*models.Habit, error
 }
 
 func (r *habitRepository) GetHabitsByUserID(userID int64) ([]*models.Habit, error) {
+	// Deprecated: use GetHabitsByUserIDPaginated
+	return nil, nil
+}
+
+func (r *habitRepository) GetHabitsByUserIDPaginated(userID int64, page, pageSize int) ([]*models.Habit, int64, error) {
+	offset := (page - 1) * pageSize
 	query := `
 		SELECT id, user_id, name, type, target_value, is_achieved, last_tracked_date, created_at
 		FROM habits
 		WHERE user_id = $1
-		ORDER BY created_at DESC`
-
-	rows, err := r.db.Query(query, userID)
+		ORDER BY created_at DESC
+		LIMIT $2 OFFSET $3`
+	rows, err := r.db.Query(query, userID, pageSize, offset)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	defer rows.Close()
 
@@ -500,12 +519,19 @@ func (r *habitRepository) GetHabitsByUserID(userID int64) ([]*models.Habit, erro
 		err := rows.Scan(&habit.ID, &habit.UserID, &habit.Name, &habit.Type,
 			&habit.TargetValue, &habit.IsAchieved, &habit.LastTrackedDate, &habit.CreatedAt)
 		if err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 		habits = append(habits, habit)
 	}
 
-	return habits, nil
+	// Get total count
+	var total int64
+	err = r.db.QueryRow(`SELECT COUNT(*) FROM habits WHERE user_id = $1`, userID).Scan(&total)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return habits, total, nil
 }
 
 func (r *habitRepository) GetHabitByID(habitID, userID int64) (*models.Habit, error) {

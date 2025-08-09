@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 	"todo-backend/models"
 	"todo-backend/repositories"
@@ -205,7 +206,7 @@ func (s *authService) ChangePassword(userID int64, currentPassword, newPassword 
 // Task Service
 type TaskService interface {
 	CreateTask(userID int64, req *models.CreateTaskRequest) (*models.Task, error)
-	GetUserTasks(userID int64) ([]*models.Task, error)
+	GetUserTasks(userID int64, page, pageSize int) ([]*models.Task, int64, error)
 	GetTaskByID(taskID, userID int64) (*models.Task, error)
 	UpdateTask(taskID, userID int64, req *models.UpdateTaskRequest) (*models.Task, error)
 	DeleteTask(taskID, userID int64) error
@@ -268,12 +269,12 @@ func (s *taskService) CreateTask(userID int64, req *models.CreateTaskRequest) (*
 	return createdTask, nil
 }
 
-func (s *taskService) GetUserTasks(userID int64) ([]*models.Task, error) {
-	tasks, err := s.taskRepo.GetTasksByUserID(userID)
+func (s *taskService) GetUserTasks(userID int64, page, pageSize int) ([]*models.Task, int64, error) {
+	tasks, total, err := s.taskRepo.GetTasksByUserIDPaginated(userID, page, pageSize)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get tasks: %w", err)
+		return nil, 0, fmt.Errorf("failed to get tasks: %w", err)
 	}
-	return tasks, nil
+	return tasks, total, nil
 }
 
 func (s *taskService) GetTaskByID(taskID, userID int64) (*models.Task, error) {
@@ -400,7 +401,7 @@ func (s *taskService) GetTasksByPriority(userID int64, priority int16) ([]*model
 }
 
 func (s *taskService) ExportTasks(userID int64, format string) ([]byte, error) {
-	tasks, err := s.taskRepo.GetTasksByUserID(userID)
+	tasks, _, err := s.taskRepo.GetTasksByUserIDPaginated(userID, 1, 10000)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get tasks for export: %w", err)
 	}
@@ -472,34 +473,62 @@ func (s *taskService) ImportTasks(userID int64, data []byte, format string) erro
 
 // Enhanced Task Management Methods Implementation
 func (s *taskService) GetTasksDueToday(userID int64) ([]*models.Task, error) {
-	tasks, err := s.taskRepo.GetTasksByUserID(userID)
-	if err != nil {
+	tasksChan := make(chan []*models.Task)
+	errChan := make(chan error)
+	go func() {
+		tasks, _, err := s.taskRepo.GetTasksByUserIDPaginated(userID, 1, 10000)
+		if err != nil {
+			errChan <- err
+			return
+		}
+		tasksChan <- tasks
+	}()
+
+	var tasks []*models.Task
+	select {
+	case t := <-tasksChan:
+		tasks = t
+	case err := <-errChan:
 		return nil, fmt.Errorf("failed to get tasks: %w", err)
 	}
 
 	today := time.Now().Format("2006-01-02")
-	var dueTodayTasks []*models.Task
-
+	dueTodayTasks := make([]*models.Task, 0)
 	for _, task := range tasks {
 		if task.DueDate != nil && task.DueDate.Format("2006-01-02") == today {
 			dueTodayTasks = append(dueTodayTasks, task)
 		}
 	}
 
-	// Log query
-	metadata := map[string]interface{}{
-		"user_id":    userID,
-		"query_type": "due_today",
-		"count":      len(dueTodayTasks),
-	}
-	s.logRepo.CreateLog(&userID, "tasks_queried", fmt.Sprintf("Retrieved %d tasks due today", len(dueTodayTasks)), metadata)
+	go func() {
+		metadata := map[string]interface{}{
+			"user_id":    userID,
+			"query_type": "due_today",
+			"count":      len(dueTodayTasks),
+		}
+		s.logRepo.CreateLog(&userID, "tasks_queried", fmt.Sprintf("Retrieved %d tasks due today", len(dueTodayTasks)), metadata)
+	}()
 
 	return dueTodayTasks, nil
 }
 
 func (s *taskService) GetTasksDueThisWeek(userID int64) ([]*models.Task, error) {
-	tasks, err := s.taskRepo.GetTasksByUserID(userID)
-	if err != nil {
+	tasksChan := make(chan []*models.Task)
+	errChan := make(chan error)
+	go func() {
+		tasks, _, err := s.taskRepo.GetTasksByUserIDPaginated(userID, 1, 10000)
+		if err != nil {
+			errChan <- err
+			return
+		}
+		tasksChan <- tasks
+	}()
+
+	var tasks []*models.Task
+	select {
+	case t := <-tasksChan:
+		tasks = t
+	case err := <-errChan:
 		return nil, fmt.Errorf("failed to get tasks: %w", err)
 	}
 
@@ -507,84 +536,138 @@ func (s *taskService) GetTasksDueThisWeek(userID int64) ([]*models.Task, error) 
 	weekStart := now.AddDate(0, 0, -int(now.Weekday()))
 	weekEnd := weekStart.AddDate(0, 0, 7)
 
-	var weekTasks []*models.Task
+	weekTasks := make([]*models.Task, 0)
 	for _, task := range tasks {
 		if task.DueDate != nil && task.DueDate.After(weekStart) && task.DueDate.Before(weekEnd) {
 			weekTasks = append(weekTasks, task)
 		}
 	}
 
-	// Log query
-	metadata := map[string]interface{}{
-		"user_id":    userID,
-		"query_type": "due_this_week",
-		"count":      len(weekTasks),
-		"week_start": weekStart.Format("2006-01-02"),
-		"week_end":   weekEnd.Format("2006-01-02"),
-	}
-	s.logRepo.CreateLog(&userID, "tasks_queried", fmt.Sprintf("Retrieved %d tasks due this week", len(weekTasks)), metadata)
+	go func() {
+		metadata := map[string]interface{}{
+			"user_id":    userID,
+			"query_type": "due_this_week",
+			"count":      len(weekTasks),
+			"week_start": weekStart.Format("2006-01-02"),
+			"week_end":   weekEnd.Format("2006-01-02"),
+		}
+		s.logRepo.CreateLog(&userID, "tasks_queried", fmt.Sprintf("Retrieved %d tasks due this week", len(weekTasks)), metadata)
+	}()
 
 	return weekTasks, nil
 }
 
 func (s *taskService) GetOverdueTasks(userID int64) ([]*models.Task, error) {
-	tasks, err := s.taskRepo.GetTasksByUserID(userID)
-	if err != nil {
+	tasksChan := make(chan []*models.Task)
+	errChan := make(chan error)
+	go func() {
+		tasks, _, err := s.taskRepo.GetTasksByUserIDPaginated(userID, 1, 10000)
+		if err != nil {
+			errChan <- err
+			return
+		}
+		tasksChan <- tasks
+	}()
+
+	var tasks []*models.Task
+	select {
+	case t := <-tasksChan:
+		tasks = t
+	case err := <-errChan:
 		return nil, fmt.Errorf("failed to get tasks: %w", err)
 	}
 
 	now := time.Now()
-	var overdueTasks []*models.Task
-
+	overdueTasks := make([]*models.Task, 0)
 	for _, task := range tasks {
 		if task.DueDate != nil && task.DueDate.Before(now) && !task.IsCompleted {
 			overdueTasks = append(overdueTasks, task)
 		}
 	}
 
-	// Log query
-	metadata := map[string]interface{}{
-		"user_id":    userID,
-		"query_type": "overdue",
-		"count":      len(overdueTasks),
-	}
-	s.logRepo.CreateLog(&userID, "tasks_queried", fmt.Sprintf("Retrieved %d overdue tasks", len(overdueTasks)), metadata)
+	go func() {
+		metadata := map[string]interface{}{
+			"user_id":    userID,
+			"query_type": "overdue",
+			"count":      len(overdueTasks),
+		}
+		s.logRepo.CreateLog(&userID, "tasks_queried", fmt.Sprintf("Retrieved %d overdue tasks", len(overdueTasks)), metadata)
+	}()
 
 	return overdueTasks, nil
 }
 
 func (s *taskService) SearchTasks(userID int64, query string, filters map[string]interface{}) ([]*models.Task, error) {
-	tasks, err := s.taskRepo.GetTasksByUserID(userID)
+	tasks, _, err := s.taskRepo.GetTasksByUserIDPaginated(userID, 1, 10000)
 	if err != nil {
 		return nil, fmt.Errorf("failed to search tasks: %w", err)
 	}
 
-	var filteredTasks []*models.Task
-	for _, task := range tasks {
-		// Implement search logic here based on query and filters
-		// This is a simplified version
-		if query != "" {
-			if strings.Contains(strings.ToLower(task.TaskName), strings.ToLower(query)) {
-				filteredTasks = append(filteredTasks, task)
-				continue
+	filteredTasks := make([]*models.Task, 0, len(tasks))
+	numWorkers := 8
+	taskChan := make(chan *models.Task)
+	resultChan := make(chan *models.Task)
+	doneChan := make(chan struct{})
+
+	// Worker pool for filtering
+	for i := 0; i < numWorkers; i++ {
+		go func() {
+			for task := range taskChan {
+				match := false
+				if query != "" {
+					if strings.Contains(strings.ToLower(task.TaskName), strings.ToLower(query)) {
+						match = true
+					} else if task.Description != nil && strings.Contains(strings.ToLower(*task.Description), strings.ToLower(query)) {
+						match = true
+					}
+				} else {
+					match = true
+				}
+				if match {
+					resultChan <- task
+				}
 			}
-			if task.Description != nil && strings.Contains(strings.ToLower(*task.Description), strings.ToLower(query)) {
-				filteredTasks = append(filteredTasks, task)
-				continue
-			}
-		} else {
-			filteredTasks = append(filteredTasks, task)
-		}
+			doneChan <- struct{}{}
+		}()
 	}
 
-	// Log search
-	metadata := map[string]interface{}{
-		"user_id": userID,
-		"query":   query,
-		"filters": filters,
-		"results": len(filteredTasks),
+	go func() {
+		for _, task := range tasks {
+			taskChan <- task
+		}
+		close(taskChan)
+	}()
+
+	go func() {
+		finished := 0
+		for {
+			select {
+			case t := <-resultChan:
+				filteredTasks = append(filteredTasks, t)
+			case <-doneChan:
+				finished++
+				if finished == numWorkers {
+					close(resultChan)
+					return
+				}
+			}
+		}
+	}()
+
+	// Wait for all workers to finish
+	for i := 0; i < numWorkers; i++ {
+		<-doneChan
 	}
-	s.logRepo.CreateLog(&userID, "tasks_searched", fmt.Sprintf("Searched tasks with query '%s', found %d results", query, len(filteredTasks)), metadata)
+
+	go func() {
+		metadata := map[string]interface{}{
+			"user_id": userID,
+			"query":   query,
+			"filters": filters,
+			"results": len(filteredTasks),
+		}
+		s.logRepo.CreateLog(&userID, "tasks_searched", fmt.Sprintf("Searched tasks with query '%s', found %d results", query, len(filteredTasks)), metadata)
+	}()
 
 	return filteredTasks, nil
 }
@@ -627,8 +710,22 @@ func (s *taskService) DuplicateTask(taskID, userID int64) (*models.Task, error) 
 }
 
 func (s *taskService) GetDashboardSummary(userID int64) (*models.DashboardSummary, error) {
-	tasks, err := s.taskRepo.GetTasksByUserID(userID)
-	if err != nil {
+	tasksChan := make(chan []*models.Task)
+	errChan := make(chan error)
+	go func() {
+		tasks, _, err := s.taskRepo.GetTasksByUserIDPaginated(userID, 1, 10000)
+		if err != nil {
+			errChan <- err
+			return
+		}
+		tasksChan <- tasks
+	}()
+
+	var tasks []*models.Task
+	select {
+	case t := <-tasksChan:
+		tasks = t
+	case err := <-errChan:
 		return nil, fmt.Errorf("failed to get dashboard summary: %w", err)
 	}
 
@@ -667,14 +764,27 @@ func (s *taskService) GetDashboardSummary(userID int64) (*models.DashboardSummar
 }
 
 func (s *taskService) GetUpcomingTasks(userID int64, limit int) ([]*models.UpcomingTask, error) {
-	tasks, err := s.taskRepo.GetTasksByUserID(userID)
-	if err != nil {
+	tasksChan := make(chan []*models.Task)
+	errChan := make(chan error)
+	go func() {
+		tasks, _, err := s.taskRepo.GetTasksByUserIDPaginated(userID, 1, 10000)
+		if err != nil {
+			errChan <- err
+			return
+		}
+		tasksChan <- tasks
+	}()
+
+	var tasks []*models.Task
+	select {
+	case t := <-tasksChan:
+		tasks = t
+	case err := <-errChan:
 		return nil, fmt.Errorf("failed to get upcoming tasks: %w", err)
 	}
 
 	now := time.Now()
-	var upcomingTasks []*models.UpcomingTask
-
+	upcomingTasks := make([]*models.UpcomingTask, 0)
 	for _, task := range tasks {
 		if !task.IsCompleted && task.DueDate != nil && task.DueDate.After(now) {
 			daysLeft := int(task.DueDate.Sub(now).Hours() / 24)
@@ -688,7 +798,6 @@ func (s *taskService) GetUpcomingTasks(userID int64, limit int) ([]*models.Upcom
 				IsUrgent: daysLeft <= 3,
 			}
 			upcomingTasks = append(upcomingTasks, upcomingTask)
-
 			if len(upcomingTasks) >= limit {
 				break
 			}
@@ -771,7 +880,7 @@ func (s *logService) CreateSystemLog(eventType, description string, metadata map
 // Habit Service
 type HabitService interface {
 	CreateHabit(userID int64, req *models.CreateHabitRequest) (*models.Habit, error)
-	GetUserHabits(userID int64) ([]*models.Habit, error)
+	GetUserHabits(userID int64, page, pageSize int) ([]*models.Habit, int64, error)
 	GetHabitByID(habitID, userID int64) (*models.Habit, error)
 	UpdateHabit(habitID, userID int64, req *models.UpdateHabitRequest) (*models.Habit, error)
 	DeleteHabit(habitID, userID int64) error
@@ -836,12 +945,12 @@ func (s *habitService) CreateHabit(userID int64, req *models.CreateHabitRequest)
 	return createdHabit, nil
 }
 
-func (s *habitService) GetUserHabits(userID int64) ([]*models.Habit, error) {
-	habits, err := s.habitRepo.GetHabitsByUserID(userID)
+func (s *habitService) GetUserHabits(userID int64, page, pageSize int) ([]*models.Habit, int64, error) {
+	habits, total, err := s.habitRepo.GetHabitsByUserIDPaginated(userID, page, pageSize)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get habits: %w", err)
+		return nil, 0, fmt.Errorf("failed to get habits: %w", err)
 	}
-	return habits, nil
+	return habits, total, nil
 }
 
 func (s *habitService) GetHabitByID(habitID, userID int64) (*models.Habit, error) {
@@ -970,7 +1079,7 @@ func (s *habitService) GetHabitsByType(userID int64, habitType string) ([]*model
 }
 
 func (s *habitService) ExportHabits(userID int64, format string) ([]byte, error) {
-	habits, err := s.habitRepo.GetHabitsByUserID(userID)
+	habits, _, err := s.habitRepo.GetHabitsByUserIDPaginated(userID, 1, 10000)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get habits for export: %w", err)
 	}
@@ -1274,16 +1383,55 @@ func (s *habitService) UpdateGoalProgress(goalID, userID int64, req *models.Upda
 
 // GetUserCategories returns all unique categories used by the user
 func (s *taskService) GetUserCategories(userID int64) ([]string, error) {
-	tasks, err := s.taskRepo.GetTasksByUserID(userID)
-	if err != nil {
+	tasksChan := make(chan []*models.Task)
+	errChan := make(chan error)
+	go func() {
+		tasks, _, err := s.taskRepo.GetTasksByUserIDPaginated(userID, 1, 10000)
+		if err != nil {
+			errChan <- err
+			return
+		}
+		tasksChan <- tasks
+	}()
+
+	var tasks []*models.Task
+	select {
+	case t := <-tasksChan:
+		tasks = t
+	case err := <-errChan:
 		return nil, fmt.Errorf("failed to get user tasks: %w", err)
 	}
 
 	categoryMap := make(map[string]bool)
-	for _, task := range tasks {
-		if task.Category != nil && *task.Category != "" {
-			categoryMap[*task.Category] = true
+	numWorkers := 8
+	taskChan := make(chan *models.Task)
+	doneChan := make(chan struct{})
+
+	// Use a mutex to protect categoryMap from concurrent writes
+	var mu sync.Mutex
+
+	for i := 0; i < numWorkers; i++ {
+		go func() {
+			for task := range taskChan {
+				if task.Category != nil && *task.Category != "" {
+					mu.Lock()
+					categoryMap[*task.Category] = true
+					mu.Unlock()
+				}
+			}
+			doneChan <- struct{}{}
+		}()
+	}
+
+	go func() {
+		for _, task := range tasks {
+			taskChan <- task
 		}
+		close(taskChan)
+	}()
+
+	for i := 0; i < numWorkers; i++ {
+		<-doneChan
 	}
 
 	categories := make([]string, 0, len(categoryMap))

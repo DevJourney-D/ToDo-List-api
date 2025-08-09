@@ -127,55 +127,55 @@ func setupRoutes() {
 		html := `<!DOCTYPE html>
 <html>
 <head>
-    <title>ToDo List API</title>
-    <style>
-        body { font-family: Arial; text-align: center; padding: 50px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; min-height: 100vh; margin: 0; }
-        .container { background: rgba(255,255,255,0.1); padding: 2rem; border-radius: 15px; max-width: 600px; margin: 0 auto; }
-        .btn { background: #4ade80; color: #065f46; padding: 10px 20px; text-decoration: none; border-radius: 5px; margin: 5px; display: inline-block; }
-        .btn:hover { transform: translateY(-2px); transition: transform 0.2s; }
-        .frontend-link { background: #3b82f6; color: white; }
-        .status { background: #10b981; color: white; padding: 15px; border-radius: 10px; margin: 20px 0; }
-    </style>
+	<title>ToDo List API</title>
+	<style>
+		body { font-family: Arial; text-align: center; padding: 50px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; min-height: 100vh; margin: 0; }
+		.container { background: rgba(255,255,255,0.1); padding: 2rem; border-radius: 15px; max-width: 600px; margin: 0 auto; }
+		.btn { background: #4ade80; color: #065f46; padding: 10px 20px; text-decoration: none; border-radius: 5px; margin: 5px; display: inline-block; }
+		.btn:hover { transform: translateY(-2px); transition: transform 0.2s; }
+		.frontend-link { background: #3b82f6; color: white; }
+		.status { background: #10b981; color: white; padding: 15px; border-radius: 10px; margin: 20px 0; }
+	</style>
 </head>
 <body>
-    <div class="container">
-        <h1>🚀 ToDo List API</h1>
-        <p>เซิร์ฟเวอร์กำลังทำงานบน Vercel Serverless</p>
-        <p>🌐 Connected Frontend: <strong>Daily Palette</strong></p>
-        
-        <div class="status">
-            <h3>✅ Real Database Integration</h3>
-            <p>API ตอนนี้ใช้ข้อมูลจริงจากฐานข้อมูล PostgreSQL/Supabase</p>
-            <p>🔐 JWT Authentication | 🗄️ Full CRUD Operations | 📊 Analytics</p>
-        </div>
-        
-        <div style="margin: 20px 0;">
-            <a href="/health" class="btn">🔍 Check Health</a>
-            <a href="/test" class="btn">🧪 Test API</a>
-            <a href="/api/v1/status" class="btn">📊 API Status</a>
-            <a href="/api/v1/ping" class="btn">🏓 Ping</a>
-        </div>
-        
-        <div style="margin: 20px 0;">
-            <a href="https://daily-palette.vercel.app" class="btn frontend-link" target="_blank">🎨 Open Frontend App</a>
-        </div>
-        
-        <div style="margin-top: 30px; font-size: 0.9em; opacity: 0.8;">
-            <p>⚡ CORS enabled for: daily-palette.vercel.app</p>
-            <p>🔗 API Base URL: <code>${window.location.origin}</code></p>
-            <p>📋 Features: Tasks, Habits, Analytics, Pomodoro, Goals</p>
-        </div>
-    </div>
-    
-    <script>
-        // Auto-update CORS info
-        document.addEventListener('DOMContentLoaded', function() {
-            const baseUrl = document.querySelector('code');
-            if (baseUrl) {
-                baseUrl.textContent = window.location.origin;
-            }
-        });
-    </script>
+	<div class="container">
+		<h1>🚀 ToDo List API</h1>
+		<p>เซิร์ฟเวอร์กำลังทำงานบน Vercel Serverless</p>
+		<p>🌐 Connected Frontend: <strong>Daily Palette</strong></p>
+		
+		<div class="status">
+			<h3>✅ Real Database Integration</h3>
+			<p>API ตอนนี้ใช้ข้อมูลจริงจากฐานข้อมูล PostgreSQL/Supabase</p>
+			<p>🔐 JWT Authentication | 🗄️ Full CRUD Operations | 📊 Analytics</p>
+		</div>
+		
+		<div style="margin: 20px 0;">
+			<a href="/health" class="btn">🔍 Check Health</a>
+			<a href="/test" class="btn">🧪 Test API</a>
+			<a href="/api/v1/status" class="btn">📊 API Status</a>
+			<a href="/api/v1/ping" class="btn">🏓 Ping</a>
+		</div>
+		
+		<div style="margin: 20px 0;">
+			<a href="https://daily-palette.vercel.app" class="btn frontend-link" target="_blank">🎨 Open Frontend App</a>
+		</div>
+		
+		<div style="margin-top: 30px; font-size: 0.9em; opacity: 0.8;">
+			<p>⚡ CORS enabled for: daily-palette.vercel.app</p>
+			<p>🔗 API Base URL: <code>${window.location.origin}</code></p>
+			<p>📋 Features: Tasks, Habits, Analytics, Pomodoro, Goals</p>
+		</div>
+	</div>
+	
+	<script>
+		// Auto-update CORS info
+		document.addEventListener('DOMContentLoaded', function() {
+			const baseUrl = document.querySelector('code');
+			if (baseUrl) {
+				baseUrl.textContent = window.location.origin;
+			}
+		});
+	</script>
 </body>
 </html>`
 		c.Data(200, "text/html; charset=utf-8", []byte(html))
@@ -264,91 +264,122 @@ func setupRoutes() {
 	// Protected routes (authentication required)
 	protected := app.Group("/api/v1")
 	protected.Use(middleware.AuthMiddleware())
-	{
-		// User routes
-		protected.GET("/user/info", authController.GetUserInfo)
-		protected.PATCH("/user/profile", authController.UpdateProfile)
-		protected.PATCH("/user/change-password", authController.ChangePassword)
-		protected.GET("/user/logs", logController.GetUserLogs)
 
-		// Task CRUD routes
-		protected.POST("/tasks", taskController.CreateTask)       // Create
-		protected.GET("/tasks", taskController.GetTasks)          // Read (list)
-		protected.GET("/tasks/:id", taskController.GetTask)       // Read (single)
-		protected.PATCH("/tasks/:id", taskController.UpdateTask)  // Update (partial)
-		protected.PUT("/tasks/:id", taskController.UpdateTask)    // Update (full)
-		protected.DELETE("/tasks/:id", taskController.DeleteTask) // Delete
+	// User routes
+	userRoutes := []struct {
+		method, path string
+		handler      gin.HandlerFunc
+	}{
+		{"GET", "/user/info", authController.GetUserInfo},
+		{"PATCH", "/user/profile", authController.UpdateProfile},
+		{"PATCH", "/user/change-password", authController.ChangePassword},
+		{"GET", "/user/logs", logController.GetUserLogs},
+	}
+	for _, r := range userRoutes {
+		protected.Handle(r.method, r.path, r.handler)
+	}
 
-		// Task specific actions
-		protected.PATCH("/tasks/:id/complete", taskController.MarkTaskCompleted)
-		protected.GET("/tasks/category/:category", taskController.GetTasksByCategory)
-		protected.GET("/tasks/priority/:priority", taskController.GetTasksByPriority)
-		protected.GET("/tasks/categories", taskController.GetCategories) // Get user categories
+	// Task CRUD routes
+	taskRoutes := []struct {
+		method, path string
+		handler      gin.HandlerFunc
+	}{
+		{"POST", "/tasks", taskController.CreateTask},
+		{"GET", "/tasks", taskController.GetTasks},
+		{"GET", "/tasks/:id", taskController.GetTask},
+		{"PATCH", "/tasks/:id", taskController.UpdateTask},
+		{"PUT", "/tasks/:id", taskController.UpdateTask},
+		{"DELETE", "/tasks/:id", taskController.DeleteTask},
+		{"PATCH", "/tasks/:id/complete", taskController.MarkTaskCompleted},
+		{"GET", "/tasks/category/:category", taskController.GetTasksByCategory},
+		{"GET", "/tasks/priority/:priority", taskController.GetTasksByPriority},
+		{"GET", "/tasks/categories", taskController.GetCategories},
+		{"GET", "/tasks/status/:status", taskController.GetTasksByStatus},
+		{"GET", "/tasks/due/today", taskController.GetTasksDueToday},
+		{"GET", "/tasks/due/week", taskController.GetTasksDueThisWeek},
+		{"GET", "/tasks/overdue", taskController.GetOverdueTasks},
+		{"GET", "/tasks/search", taskController.SearchTasks},
+		{"PATCH", "/tasks/:id/status", taskController.UpdateTaskStatus},
+		{"POST", "/tasks/:id/duplicate", taskController.DuplicateTask},
+		{"GET", "/tasks/calendar/day/:date", taskController.GetTasksByDate},
+		{"GET", "/tasks/calendar/week/:date", taskController.GetTasksForWeek},
+		{"GET", "/tasks/calendar/month/:date", taskController.GetTasksForMonth},
+		{"PATCH", "/tasks/:id/reschedule", taskController.RescheduleTask},
+		{"GET", "/dashboard/summary", taskController.GetDashboardSummary},
+		{"GET", "/dashboard/upcoming", taskController.GetUpcomingTasks},
+		{"GET", "/dashboard/recent", taskController.GetRecentActivity},
+		{"GET", "/tasks/export", taskController.ExportTasks},
+		{"POST", "/tasks/import", taskController.ImportTasks},
+	}
+	for _, r := range taskRoutes {
+		protected.Handle(r.method, r.path, r.handler)
+	}
 
-		// Enhanced Task Management
-		protected.GET("/tasks/status/:status", taskController.GetTasksByStatus)
-		protected.GET("/tasks/due/today", taskController.GetTasksDueToday)
-		protected.GET("/tasks/due/week", taskController.GetTasksDueThisWeek)
-		protected.GET("/tasks/overdue", taskController.GetOverdueTasks)
-		protected.GET("/tasks/search", taskController.SearchTasks)
-		protected.PATCH("/tasks/:id/status", taskController.UpdateTaskStatus)
-		protected.POST("/tasks/:id/duplicate", taskController.DuplicateTask)
+	// Habit CRUD routes
+	habitRoutes := []struct {
+		method, path string
+		handler      gin.HandlerFunc
+	}{
+		{"POST", "/habits", habitController.CreateHabit},
+		{"GET", "/habits", habitController.GetHabits},
+		{"GET", "/habits/:id", habitController.GetHabit},
+		{"PATCH", "/habits/:id", habitController.UpdateHabit},
+		{"DELETE", "/habits/:id", habitController.DeleteHabit},
+		{"PATCH", "/habits/:id/track", habitController.TrackHabit},
+		{"PATCH", "/habits/:id/achieve", habitController.MarkHabitAchieved},
+		{"GET", "/habits/export", habitController.ExportHabits},
+		{"POST", "/habits/import", habitController.ImportHabits},
+		{"GET", "/habits/:id/streak", habitController.GetHabitStreak},
+		{"GET", "/habits/consistency-report", habitController.GetHabitsConsistencyReport},
+	}
+	for _, r := range habitRoutes {
+		protected.Handle(r.method, r.path, r.handler)
+	}
 
-		// Calendar & Views
-		protected.GET("/tasks/calendar/day/:date", taskController.GetTasksByDate)
-		protected.GET("/tasks/calendar/week/:date", taskController.GetTasksForWeek)
-		protected.GET("/tasks/calendar/month/:date", taskController.GetTasksForMonth)
-		protected.PATCH("/tasks/:id/reschedule", taskController.RescheduleTask)
+	// Analytics routes
+	analyticsRoutes := []struct {
+		method, path string
+		handler      gin.HandlerFunc
+	}{
+		{"GET", "/analytics/overview", analyticsController.GetOverview},
+		{"GET", "/analytics/tasks", analyticsController.GetTaskAnalytics},
+		{"GET", "/analytics/habits", analyticsController.GetHabitAnalytics},
+		{"GET", "/analytics/performance/weekly", analyticsController.GetWeeklyPerformance},
+		{"GET", "/analytics/performance/monthly", analyticsController.GetMonthlyPerformance},
+		{"GET", "/analytics/time-allocation", analyticsController.GetTimeAllocation},
+		{"GET", "/analytics/productivity-trends", analyticsController.GetProductivityTrends},
+	}
+	for _, r := range analyticsRoutes {
+		protected.Handle(r.method, r.path, r.handler)
+	}
 
-		// Dashboard & Summary
-		protected.GET("/dashboard/summary", taskController.GetDashboardSummary)
-		protected.GET("/dashboard/upcoming", taskController.GetUpcomingTasks)
-		protected.GET("/dashboard/recent", taskController.GetRecentActivity)
+	// Focus Tools routes
+	focusRoutes := []struct {
+		method, path string
+		handler      gin.HandlerFunc
+	}{
+		{"POST", "/focus/pomodoro/start", habitController.StartPomodoroSession},
+		{"POST", "/focus/pomodoro/complete", habitController.CompletePomodoroSession},
+		{"GET", "/focus/pomodoro/stats", habitController.GetPomodoroStats},
+	}
+	for _, r := range focusRoutes {
+		protected.Handle(r.method, r.path, r.handler)
+	}
 
-		// Habit CRUD routes
-		protected.POST("/habits", habitController.CreateHabit)       // Create
-		protected.GET("/habits", habitController.GetHabits)          // Read (list)
-		protected.GET("/habits/:id", habitController.GetHabit)       // Read (single)
-		protected.PATCH("/habits/:id", habitController.UpdateHabit)  // Update
-		protected.DELETE("/habits/:id", habitController.DeleteHabit) // Delete
-
-		// Habit specific actions
-		protected.PATCH("/habits/:id/track", habitController.TrackHabit)
-		protected.PATCH("/habits/:id/achieve", habitController.MarkHabitAchieved)
-
-		// Export/Import routes
-		protected.GET("/tasks/export", taskController.ExportTasks)
-		protected.POST("/tasks/import", taskController.ImportTasks)
-		protected.GET("/habits/export", habitController.ExportHabits)
-		protected.POST("/habits/import", habitController.ImportHabits)
-
-		// Analytics routes
-		protected.GET("/analytics/overview", analyticsController.GetOverview)
-		protected.GET("/analytics/tasks", analyticsController.GetTaskAnalytics)
-		protected.GET("/analytics/habits", analyticsController.GetHabitAnalytics)
-
-		// Performance & Insights routes
-		protected.GET("/analytics/performance/weekly", analyticsController.GetWeeklyPerformance)
-		protected.GET("/analytics/performance/monthly", analyticsController.GetMonthlyPerformance)
-		protected.GET("/analytics/time-allocation", analyticsController.GetTimeAllocation)
-		protected.GET("/analytics/productivity-trends", analyticsController.GetProductivityTrends)
-
-		// Focus Tools routes
-		protected.POST("/focus/pomodoro/start", habitController.StartPomodoroSession)
-		protected.POST("/focus/pomodoro/complete", habitController.CompletePomodoroSession)
-		protected.GET("/focus/pomodoro/stats", habitController.GetPomodoroStats)
-
-		// Goals & Personal Growth routes
-		protected.POST("/goals", habitController.CreateGoal)
-		protected.GET("/goals", habitController.GetGoals)
-		protected.GET("/goals/:id", habitController.GetGoal)
-		protected.PATCH("/goals/:id", habitController.UpdateGoal)
-		protected.DELETE("/goals/:id", habitController.DeleteGoal)
-		protected.PATCH("/goals/:id/progress", habitController.UpdateGoalProgress)
-
-		// Habit Streaks & Consistency
-		protected.GET("/habits/:id/streak", habitController.GetHabitStreak)
-		protected.GET("/habits/consistency-report", habitController.GetHabitsConsistencyReport)
+	// Goals & Personal Growth routes
+	goalRoutes := []struct {
+		method, path string
+		handler      gin.HandlerFunc
+	}{
+		{"POST", "/goals", habitController.CreateGoal},
+		{"GET", "/goals", habitController.GetGoals},
+		{"GET", "/goals/:id", habitController.GetGoal},
+		{"PATCH", "/goals/:id", habitController.UpdateGoal},
+		{"DELETE", "/goals/:id", habitController.DeleteGoal},
+		{"PATCH", "/goals/:id/progress", habitController.UpdateGoalProgress},
+	}
+	for _, r := range goalRoutes {
+		protected.Handle(r.method, r.path, r.handler)
 	}
 
 	// Catch all route for debugging

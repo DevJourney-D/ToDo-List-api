@@ -214,36 +214,30 @@ func (ctrl *TaskController) GetTasks(c *gin.Context) {
 		return
 	}
 
-	// Check for filters
-	category := c.Query("category")
-	priorityStr := c.Query("priority")
-
-	var tasks []*models.Task
-	var err error
-
-	if category != "" {
-		tasks, err = ctrl.taskService.GetTasksByCategory(userID, category)
-	} else if priorityStr != "" {
-		priority, parseErr := strconv.ParseInt(priorityStr, 10, 16)
-		if parseErr != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid priority value"})
-			return
-		}
-		tasks, err = ctrl.taskService.GetTasksByPriority(userID, int16(priority))
-	} else {
-		tasks, err = ctrl.taskService.GetUserTasks(userID)
+	// Pagination params
+	pageStr := c.DefaultQuery("page", "1")
+	pageSizeStr := c.DefaultQuery("pageSize", "100")
+	page, err := strconv.Atoi(pageStr)
+	if err != nil || page < 1 {
+		page = 1
+	}
+	pageSize, err := strconv.Atoi(pageSizeStr)
+	if err != nil || pageSize < 1 {
+		pageSize = 100
 	}
 
-	if err != nil {
+	// Pagination refactor: category and priorityStr are unused
+
+	// Always use paginated fallback for all queries
+	tasks, total, svcErr := ctrl.taskService.GetUserTasks(userID, page, pageSize)
+	if svcErr != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get tasks"})
 		return
 	}
-
 	response := models.TaskResponse{
 		Tasks: tasks,
-		Total: len(tasks),
+		Total: int(total),
 	}
-
 	c.JSON(http.StatusOK, response)
 }
 
@@ -442,10 +436,19 @@ func (ctrl *TaskController) GetTasksByStatus(c *gin.Context) {
 	}
 
 	status := c.Param("status")
+	pageStr := c.DefaultQuery("page", "1")
+	pageSizeStr := c.DefaultQuery("pageSize", "100")
+	page, err := strconv.Atoi(pageStr)
+	if err != nil || page < 1 {
+		page = 1
+	}
+	pageSize, err := strconv.Atoi(pageSizeStr)
+	if err != nil || pageSize < 1 {
+		pageSize = 100
+	}
 
-	// For now, map to existing completed/pending logic
-	tasks, err := ctrl.taskService.GetUserTasks(userID)
-	if err != nil {
+	tasks, total, svcErr := ctrl.taskService.GetUserTasks(userID, page, pageSize)
+	if svcErr != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get tasks"})
 		return
 	}
@@ -467,6 +470,7 @@ func (ctrl *TaskController) GetTasksByStatus(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"tasks":  filteredTasks,
 		"count":  len(filteredTasks),
+		"total":  int(total),
 		"status": status,
 	})
 }
@@ -478,8 +482,19 @@ func (ctrl *TaskController) GetTasksDueToday(c *gin.Context) {
 		return
 	}
 
-	tasks, err := ctrl.taskService.GetUserTasks(userID)
-	if err != nil {
+	pageStr := c.DefaultQuery("page", "1")
+	pageSizeStr := c.DefaultQuery("pageSize", "100")
+	page, err := strconv.Atoi(pageStr)
+	if err != nil || page < 1 {
+		page = 1
+	}
+	pageSize, err := strconv.Atoi(pageSizeStr)
+	if err != nil || pageSize < 1 {
+		pageSize = 100
+	}
+
+	tasks, _, svcErr := ctrl.taskService.GetUserTasks(userID, page, pageSize)
+	if svcErr != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get tasks"})
 		return
 	}
@@ -494,9 +509,11 @@ func (ctrl *TaskController) GetTasksDueToday(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"tasks": dueTodayTasks,
-		"count": len(dueTodayTasks),
-		"date":  today,
+		"tasks":    dueTodayTasks,
+		"count":    len(dueTodayTasks),
+		"date":     today,
+		"page":     page,
+		"pageSize": pageSize,
 	})
 }
 
@@ -507,7 +524,7 @@ func (ctrl *TaskController) GetTasksDueThisWeek(c *gin.Context) {
 		return
 	}
 
-	tasks, err := ctrl.taskService.GetUserTasks(userID)
+	tasks, _, err := ctrl.taskService.GetUserTasks(userID, 1, 10000)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get tasks"})
 		return
@@ -539,8 +556,19 @@ func (ctrl *TaskController) GetOverdueTasks(c *gin.Context) {
 		return
 	}
 
-	tasks, err := ctrl.taskService.GetUserTasks(userID)
-	if err != nil {
+	pageStr := c.DefaultQuery("page", "1")
+	pageSizeStr := c.DefaultQuery("pageSize", "100")
+	page, err := strconv.Atoi(pageStr)
+	if err != nil || page < 1 {
+		page = 1
+	}
+	pageSize, err := strconv.Atoi(pageSizeStr)
+	if err != nil || pageSize < 1 {
+		pageSize = 100
+	}
+
+	tasks, _, svcErr := ctrl.taskService.GetUserTasks(userID, page, pageSize)
+	if svcErr != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get tasks"})
 		return
 	}
@@ -558,6 +586,8 @@ func (ctrl *TaskController) GetOverdueTasks(c *gin.Context) {
 		"tasks":        overdueTasks,
 		"count":        len(overdueTasks),
 		"current_time": now.Format("2006-01-02 15:04:05"),
+		"page":         page,
+		"pageSize":     pageSize,
 	})
 }
 
@@ -568,13 +598,24 @@ func (ctrl *TaskController) SearchTasks(c *gin.Context) {
 		return
 	}
 
+	pageStr := c.DefaultQuery("page", "1")
+	pageSizeStr := c.DefaultQuery("pageSize", "100")
+	page, err := strconv.Atoi(pageStr)
+	if err != nil || page < 1 {
+		page = 1
+	}
+	pageSize, err := strconv.Atoi(pageSizeStr)
+	if err != nil || pageSize < 1 {
+		pageSize = 100
+	}
+
 	query := c.Query("q")
 	category := c.Query("category")
 	priority := c.Query("priority")
 	status := c.Query("status")
 
-	tasks, err := ctrl.taskService.GetUserTasks(userID)
-	if err != nil {
+	tasks, _, svcErr := ctrl.taskService.GetUserTasks(userID, page, pageSize)
+	if svcErr != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to search tasks"})
 		return
 	}
@@ -622,9 +663,11 @@ func (ctrl *TaskController) SearchTasks(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"tasks": filteredTasks,
-		"count": len(filteredTasks),
-		"query": query,
+		"tasks":    filteredTasks,
+		"count":    len(filteredTasks),
+		"query":    query,
+		"page":     page,
+		"pageSize": pageSize,
 		"filters": gin.H{
 			"category": category,
 			"priority": priority,
@@ -726,7 +769,7 @@ func (ctrl *TaskController) GetTasksByDate(c *gin.Context) {
 		return
 	}
 
-	tasks, err := ctrl.taskService.GetUserTasks(userID)
+	tasks, _, err := ctrl.taskService.GetUserTasks(userID, 1, 10000)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get tasks"})
 		return
@@ -766,7 +809,7 @@ func (ctrl *TaskController) GetTasksForWeek(c *gin.Context) {
 	weekStart := date.AddDate(0, 0, -int(date.Weekday()-time.Monday))
 	weekEnd := weekStart.AddDate(0, 0, 7)
 
-	tasks, err := ctrl.taskService.GetUserTasks(userID)
+	tasks, _, err := ctrl.taskService.GetUserTasks(userID, 1, 10000)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get tasks"})
 		return
@@ -822,7 +865,7 @@ func (ctrl *TaskController) GetTasksForMonth(c *gin.Context) {
 	monthStart := time.Date(year, month, 1, 0, 0, 0, 0, date.Location())
 	monthEnd := monthStart.AddDate(0, 1, 0)
 
-	tasks, err := ctrl.taskService.GetUserTasks(userID)
+	tasks, _, err := ctrl.taskService.GetUserTasks(userID, 1, 10000)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get tasks"})
 		return
@@ -901,7 +944,7 @@ func (ctrl *TaskController) GetDashboardSummary(c *gin.Context) {
 		return
 	}
 
-	tasks, err := ctrl.taskService.GetUserTasks(userID)
+	tasks, _, err := ctrl.taskService.GetUserTasks(userID, 1, 10000)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get dashboard summary"})
 		return
@@ -954,7 +997,7 @@ func (ctrl *TaskController) GetUpcomingTasks(c *gin.Context) {
 		}
 	}
 
-	tasks, err := ctrl.taskService.GetUserTasks(userID)
+	tasks, _, err := ctrl.taskService.GetUserTasks(userID, 1, 10000)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get upcoming tasks"})
 		return
@@ -1005,7 +1048,7 @@ func (ctrl *TaskController) GetRecentActivity(c *gin.Context) {
 		}
 	}
 
-	tasks, err := ctrl.taskService.GetUserTasks(userID)
+	tasks, _, err := ctrl.taskService.GetUserTasks(userID, 1, 10000)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get recent activity"})
 		return
@@ -1174,24 +1217,27 @@ func (ctrl *HabitController) GetHabits(c *gin.Context) {
 		return
 	}
 
-	habitType := c.Query("type")
-	var habits []*models.Habit
-	var err error
-
-	if habitType != "" {
-		habits, err = ctrl.habitService.GetHabitsByType(userID, habitType)
-	} else {
-		habits, err = ctrl.habitService.GetUserHabits(userID)
+	pageStr := c.DefaultQuery("page", "1")
+	pageSizeStr := c.DefaultQuery("pageSize", "100")
+	page, err := strconv.Atoi(pageStr)
+	if err != nil || page < 1 {
+		page = 1
+	}
+	pageSize, err := strconv.Atoi(pageSizeStr)
+	if err != nil || pageSize < 1 {
+		pageSize = 100
 	}
 
-	if err != nil {
+	// Pagination refactor: habitType is unused
+	// Always use paginated fallback for all queries
+	habits, total, svcErr := ctrl.habitService.GetUserHabits(userID, page, pageSize)
+	if svcErr != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get habits"})
 		return
 	}
-
 	c.JSON(http.StatusOK, gin.H{
 		"habits": habits,
-		"total":  len(habits),
+		"total":  total,
 	})
 }
 
@@ -1650,7 +1696,7 @@ func (ctrl *HabitController) GetHabitsConsistencyReport(c *gin.Context) {
 		return
 	}
 
-	habits, err := ctrl.habitService.GetUserHabits(userID)
+	habits, _, err := ctrl.habitService.GetUserHabits(userID, 1, 10000)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get habits"})
 		return
@@ -1723,7 +1769,7 @@ func (ctrl *AnalyticsController) GetTaskAnalytics(c *gin.Context) {
 		return
 	}
 
-	tasks, err := ctrl.taskService.GetUserTasks(userID)
+	tasks, _, err := ctrl.taskService.GetUserTasks(userID, 1, 10000)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get task analytics"})
 		return
@@ -1770,7 +1816,7 @@ func (ctrl *AnalyticsController) GetHabitAnalytics(c *gin.Context) {
 		return
 	}
 
-	habits, err := ctrl.habitService.GetUserHabits(userID)
+	habits, _, err := ctrl.habitService.GetUserHabits(userID, 1, 10000)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get habit analytics"})
 		return
@@ -1813,13 +1859,12 @@ func (ctrl *AnalyticsController) GetWeeklyPerformance(c *gin.Context) {
 	}
 
 	// Get tasks from the last 7 days
-	tasks, err := ctrl.taskService.GetUserTasks(userID)
+	tasks, _, err := ctrl.taskService.GetUserTasks(userID, 1, 10000)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get weekly performance"})
 		return
 	}
-
-	habits, err := ctrl.habitService.GetUserHabits(userID)
+	habits, _, err := ctrl.habitService.GetUserHabits(userID, 1, 10000)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get weekly performance"})
 		return
@@ -1837,13 +1882,12 @@ func (ctrl *AnalyticsController) GetMonthlyPerformance(c *gin.Context) {
 	}
 
 	// Get tasks from the last 30 days
-	tasks, err := ctrl.taskService.GetUserTasks(userID)
+	tasks, _, err := ctrl.taskService.GetUserTasks(userID, 1, 10000)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get monthly performance"})
 		return
 	}
-
-	habits, err := ctrl.habitService.GetUserHabits(userID)
+	habits, _, err := ctrl.habitService.GetUserHabits(userID, 1, 10000)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get monthly performance"})
 		return
@@ -1860,7 +1904,7 @@ func (ctrl *AnalyticsController) GetTimeAllocation(c *gin.Context) {
 		return
 	}
 
-	tasks, err := ctrl.taskService.GetUserTasks(userID)
+	tasks, _, err := ctrl.taskService.GetUserTasks(userID, 1, 10000)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get time allocation"})
 		return
@@ -1877,7 +1921,7 @@ func (ctrl *AnalyticsController) GetProductivityTrends(c *gin.Context) {
 		return
 	}
 
-	tasks, err := ctrl.taskService.GetUserTasks(userID)
+	tasks, _, err := ctrl.taskService.GetUserTasks(userID, 1, 10000)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get productivity trends"})
 		return
