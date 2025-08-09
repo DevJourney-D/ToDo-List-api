@@ -3,6 +3,7 @@ package controllers
 import (
 	"database/sql"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -483,17 +484,18 @@ func (ctrl *TaskController) GetTasksDueToday(c *gin.Context) {
 	}
 
 	pageStr := c.DefaultQuery("page", "1")
-	pageSizeStr := c.DefaultQuery("pageSize", "100")
+	pageSizeStr := c.DefaultQuery("pageSize", "10")
 	page, err := strconv.Atoi(pageStr)
 	if err != nil || page < 1 {
 		page = 1
 	}
 	pageSize, err := strconv.Atoi(pageSizeStr)
 	if err != nil || pageSize < 1 {
-		pageSize = 100
+		pageSize = 10
 	}
 
-	tasks, _, svcErr := ctrl.taskService.GetUserTasks(userID, page, pageSize)
+	// Get all tasks to filter by date
+	tasks, _, svcErr := ctrl.taskService.GetUserTasks(userID, 1, 10000)
 	if svcErr != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get tasks"})
 		return
@@ -508,12 +510,28 @@ func (ctrl *TaskController) GetTasksDueToday(c *gin.Context) {
 		}
 	}
 
+	// Apply pagination to filtered results
+	totalToday := len(dueTodayTasks)
+	totalPages := (totalToday + pageSize - 1) / pageSize
+	startIndex := (page - 1) * pageSize
+	endIndex := startIndex + pageSize
+
+	if startIndex >= totalToday {
+		dueTodayTasks = []*models.Task{}
+	} else {
+		if endIndex > totalToday {
+			endIndex = totalToday
+		}
+		dueTodayTasks = dueTodayTasks[startIndex:endIndex]
+	}
+
 	c.JSON(http.StatusOK, gin.H{
-		"tasks":    dueTodayTasks,
-		"count":    len(dueTodayTasks),
-		"date":     today,
-		"page":     page,
-		"pageSize": pageSize,
+		"tasks":      dueTodayTasks,
+		"total":      totalToday,
+		"page":       page,
+		"pageSize":   pageSize,
+		"totalPages": totalPages,
+		"date":       today,
 	})
 }
 
@@ -557,17 +575,18 @@ func (ctrl *TaskController) GetOverdueTasks(c *gin.Context) {
 	}
 
 	pageStr := c.DefaultQuery("page", "1")
-	pageSizeStr := c.DefaultQuery("pageSize", "100")
+	pageSizeStr := c.DefaultQuery("pageSize", "10")
 	page, err := strconv.Atoi(pageStr)
 	if err != nil || page < 1 {
 		page = 1
 	}
 	pageSize, err := strconv.Atoi(pageSizeStr)
 	if err != nil || pageSize < 1 {
-		pageSize = 100
+		pageSize = 10
 	}
 
-	tasks, _, svcErr := ctrl.taskService.GetUserTasks(userID, page, pageSize)
+	// Get all tasks to filter overdue
+	tasks, _, svcErr := ctrl.taskService.GetUserTasks(userID, 1, 10000)
 	if svcErr != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get tasks"})
 		return
@@ -582,12 +601,36 @@ func (ctrl *TaskController) GetOverdueTasks(c *gin.Context) {
 		}
 	}
 
+	// Sort by due date (oldest first for overdue tasks)
+	sort.Slice(overdueTasks, func(i, j int) bool {
+		if overdueTasks[i].DueDate == nil || overdueTasks[j].DueDate == nil {
+			return false
+		}
+		return overdueTasks[i].DueDate.Time.Before(overdueTasks[j].DueDate.Time)
+	})
+
+	// Apply pagination to filtered results
+	totalOverdue := len(overdueTasks)
+	totalPages := (totalOverdue + pageSize - 1) / pageSize
+	startIndex := (page - 1) * pageSize
+	endIndex := startIndex + pageSize
+
+	if startIndex >= totalOverdue {
+		overdueTasks = []*models.Task{}
+	} else {
+		if endIndex > totalOverdue {
+			endIndex = totalOverdue
+		}
+		overdueTasks = overdueTasks[startIndex:endIndex]
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"tasks":        overdueTasks,
-		"count":        len(overdueTasks),
-		"current_time": now.Format("2006-01-02 15:04:05"),
+		"total":        totalOverdue,
 		"page":         page,
 		"pageSize":     pageSize,
+		"totalPages":   totalPages,
+		"current_time": now.Format("2006-01-02 15:04:05"),
 	})
 }
 
@@ -599,14 +642,14 @@ func (ctrl *TaskController) SearchTasks(c *gin.Context) {
 	}
 
 	pageStr := c.DefaultQuery("page", "1")
-	pageSizeStr := c.DefaultQuery("pageSize", "100")
+	pageSizeStr := c.DefaultQuery("pageSize", "10")
 	page, err := strconv.Atoi(pageStr)
 	if err != nil || page < 1 {
 		page = 1
 	}
 	pageSize, err := strconv.Atoi(pageSizeStr)
 	if err != nil || pageSize < 1 {
-		pageSize = 100
+		pageSize = 10
 	}
 
 	query := c.Query("q")
@@ -614,7 +657,8 @@ func (ctrl *TaskController) SearchTasks(c *gin.Context) {
 	priority := c.Query("priority")
 	status := c.Query("status")
 
-	tasks, _, svcErr := ctrl.taskService.GetUserTasks(userID, page, pageSize)
+	// Get all tasks first
+	tasks, _, svcErr := ctrl.taskService.GetUserTasks(userID, 1, 10000) // Get all for filtering
 	if svcErr != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to search tasks"})
 		return
@@ -662,12 +706,28 @@ func (ctrl *TaskController) SearchTasks(c *gin.Context) {
 		filteredTasks = append(filteredTasks, task)
 	}
 
+	// Apply pagination to filtered results
+	totalFiltered := len(filteredTasks)
+	totalPages := (totalFiltered + pageSize - 1) / pageSize
+	startIndex := (page - 1) * pageSize
+	endIndex := startIndex + pageSize
+
+	if startIndex >= totalFiltered {
+		filteredTasks = []*models.Task{}
+	} else {
+		if endIndex > totalFiltered {
+			endIndex = totalFiltered
+		}
+		filteredTasks = filteredTasks[startIndex:endIndex]
+	}
+
 	c.JSON(http.StatusOK, gin.H{
-		"tasks":    filteredTasks,
-		"count":    len(filteredTasks),
-		"query":    query,
-		"page":     page,
-		"pageSize": pageSize,
+		"tasks":      filteredTasks,
+		"total":      totalFiltered,
+		"page":       page,
+		"pageSize":   pageSize,
+		"totalPages": totalPages,
+		"query":      query,
 		"filters": gin.H{
 			"category": category,
 			"priority": priority,
@@ -990,10 +1050,24 @@ func (ctrl *TaskController) GetUpcomingTasks(c *gin.Context) {
 		return
 	}
 
-	limit := 10 // Default limit
+	// Pagination parameters
+	pageStr := c.DefaultQuery("page", "1")
+	pageSizeStr := c.DefaultQuery("pageSize", "10")
+	page, err := strconv.Atoi(pageStr)
+	if err != nil || page < 1 {
+		page = 1
+	}
+	pageSize, err := strconv.Atoi(pageSizeStr)
+	if err != nil || pageSize < 1 || pageSize > 100 {
+		pageSize = 10
+	}
+
+	// Legacy limit parameter for backward compatibility
+	limit := pageSize
 	if limitParam := c.Query("limit"); limitParam != "" {
 		if l, err := strconv.Atoi(limitParam); err == nil && l > 0 {
 			limit = l
+			pageSize = l // Use limit as pageSize for backward compatibility
 		}
 	}
 
@@ -1004,7 +1078,7 @@ func (ctrl *TaskController) GetUpcomingTasks(c *gin.Context) {
 	}
 
 	now := time.Now()
-	var upcomingTasks []*models.UpcomingTask
+	var allUpcomingTasks []*models.UpcomingTask
 
 	for _, task := range tasks {
 		if !task.IsCompleted && task.DueDate != nil && task.DueDate.Time.After(now) {
@@ -1018,19 +1092,38 @@ func (ctrl *TaskController) GetUpcomingTasks(c *gin.Context) {
 				DaysLeft: daysLeft,
 				IsUrgent: daysLeft <= 3, // Tasks due within 3 days are urgent
 			}
-			upcomingTasks = append(upcomingTasks, upcomingTask)
+			allUpcomingTasks = append(allUpcomingTasks, upcomingTask)
 		}
 	}
 
-	// Limit results
-	if len(upcomingTasks) > limit {
-		upcomingTasks = upcomingTasks[:limit]
+	// Sort by due date (closest first)
+	sort.Slice(allUpcomingTasks, func(i, j int) bool {
+		return allUpcomingTasks[i].DueDate.Time.Before(allUpcomingTasks[j].DueDate.Time)
+	})
+
+	// Apply pagination
+	total := len(allUpcomingTasks)
+	startIndex := (page - 1) * pageSize
+	endIndex := startIndex + pageSize
+
+	var paginatedTasks []*models.UpcomingTask
+	if startIndex >= total {
+		paginatedTasks = []*models.UpcomingTask{}
+	} else {
+		if endIndex > total {
+			endIndex = total
+		}
+		paginatedTasks = allUpcomingTasks[startIndex:endIndex]
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"upcoming_tasks": upcomingTasks,
-		"count":          len(upcomingTasks),
-		"limit":          limit,
+		"upcoming_tasks": paginatedTasks,
+		"count":          len(paginatedTasks),
+		"total":          total,
+		"page":           page,
+		"page_size":      pageSize,
+		"total_pages":    (total + pageSize - 1) / pageSize,
+		"limit":          limit, // For backward compatibility
 	})
 }
 
@@ -1041,10 +1134,24 @@ func (ctrl *TaskController) GetRecentActivity(c *gin.Context) {
 		return
 	}
 
-	limit := 20 // Default limit
+	// Pagination parameters
+	pageStr := c.DefaultQuery("page", "1")
+	pageSizeStr := c.DefaultQuery("pageSize", "20")
+	page, err := strconv.Atoi(pageStr)
+	if err != nil || page < 1 {
+		page = 1
+	}
+	pageSize, err := strconv.Atoi(pageSizeStr)
+	if err != nil || pageSize < 1 || pageSize > 100 {
+		pageSize = 20
+	}
+
+	// Legacy limit parameter for backward compatibility
+	limit := pageSize
 	if limitParam := c.Query("limit"); limitParam != "" {
 		if l, err := strconv.Atoi(limitParam); err == nil && l > 0 {
 			limit = l
+			pageSize = l // Use limit as pageSize for backward compatibility
 		}
 	}
 
@@ -1054,7 +1161,7 @@ func (ctrl *TaskController) GetRecentActivity(c *gin.Context) {
 		return
 	}
 
-	var activities []*models.RecentActivity
+	var allActivities []*models.RecentActivity
 
 	// Add task creation activities
 	for _, task := range tasks {
@@ -1065,21 +1172,37 @@ func (ctrl *TaskController) GetRecentActivity(c *gin.Context) {
 			TaskName:    &task.TaskName,
 			CreatedAt:   task.CreatedAt,
 		}
-		activities = append(activities, activity)
+		allActivities = append(allActivities, activity)
 	}
 
-	// Sort by creation time (newest first) - simple approach
-	// In a real implementation, you'd query logs table for proper activity tracking
+	// Sort by creation time (newest first)
+	sort.Slice(allActivities, func(i, j int) bool {
+		return allActivities[i].CreatedAt.After(allActivities[j].CreatedAt)
+	})
 
-	// Limit results
-	if len(activities) > limit {
-		activities = activities[:limit]
+	// Apply pagination
+	total := len(allActivities)
+	startIndex := (page - 1) * pageSize
+	endIndex := startIndex + pageSize
+
+	var paginatedActivities []*models.RecentActivity
+	if startIndex >= total {
+		paginatedActivities = []*models.RecentActivity{}
+	} else {
+		if endIndex > total {
+			endIndex = total
+		}
+		paginatedActivities = allActivities[startIndex:endIndex]
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"recent_activities": activities,
-		"count":             len(activities),
-		"limit":             limit,
+		"recent_activities": paginatedActivities,
+		"count":             len(paginatedActivities),
+		"total":             total,
+		"page":              page,
+		"page_size":         pageSize,
+		"total_pages":       (total + pageSize - 1) / pageSize,
+		"limit":             limit, // For backward compatibility
 	})
 }
 
